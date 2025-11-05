@@ -5,11 +5,41 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Salon {
+  id_salon Int @id @default(autoincrement())
+  code_partage String
+  nom String
+  id_participation_hote Participation? @relation(fields: [id_participation_hoteID], references: [id_participation])
+  id_participation_hoteID Int @unique
+  etat_lecture String
+  fournisseur String
+  video_id String
+  horodatage_sec Int
+  maj_etat_le DateTime @updatedAt
+  cree_le DateTime @default(now())
+}
+
+model Participation {
+  id_participation Int @id @default(autoincrement())
+  id_participation_hote Salon?
+  id_utilisateur Utilisateur @relation(fields: [id_utilisateurID], references: [id_utilisateur])
+  id_utilisateurID Int
+}
+
+model Utilisateur {
+  id_utilisateur Int @id @default(autoincrement())
+  pseudo String
+  email String
+  mot_de_passe_hache String
+  cree_le DateTime @default(now())
+  modifie_le DateTime @updatedAt
+  id_participation Participation[]
 }
