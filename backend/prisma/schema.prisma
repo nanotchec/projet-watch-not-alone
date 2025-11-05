@@ -30,8 +30,14 @@ model Salon {
 model Participation {
   id_participation Int @id @default(autoincrement())
   id_participation_hote Salon?
-  id_utilisateur Utilisateur @relation(fields: [id_utilisateurID], references: [id_utilisateur])
+  id_utilisateur Utilisateur? @relation(fields: [id_utilisateurID], references: [id_utilisateur])
   id_utilisateurID Int
+  pseudo String
+  role String
+  ip String
+  rejoint_le DateTime @default(now())
+  quitte_le DateTime? 
+  id_message Message[]
 }
 
 model Utilisateur {
@@ -42,4 +48,13 @@ model Utilisateur {
   cree_le DateTime @default(now())
   modifie_le DateTime @updatedAt
   id_participation Participation[]
+}
+
+model Message {
+  id_message Int @id @default(autoincrement())
+  id_participation Participation @relation(fields:[id_ParticipationID], references: [id_participation])
+  id_ParticipationID Int 
+  type String
+  contenu String
+  cree_le DateTime @default(now())
 }
