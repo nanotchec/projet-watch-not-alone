@@ -28,6 +28,7 @@ model Salon {
   id_playlist Playlist?
   id_etat EtatSalonHistorique[]
   id_banip BanIp[]
+  id_ban_user BanUtilisateur[]
 }
 
 model Participation {
@@ -53,7 +54,7 @@ model Utilisateur {
   cree_le DateTime @default(now())
   modifie_le DateTime @updatedAt
   id_participation Participation[]
-  id_ban_user BanUtilisateur
+  id_ban_user BanUtilisateur?
 }
 
 model Message {
@@ -91,9 +92,9 @@ model EtatSalonHistorique {
   id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
   id_salonID Int
   video_id String
-  etat_lecture 
+  etat_lecture String
   horodatage_sec Int
-  vitesse 
+  vitesse String
   enregistree_le DateTime @default(now())
 }
 
@@ -112,5 +113,5 @@ model BanUtilisateur {
   id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
   id_salonID Int
   id_utilisateur Utilisateur @relation(fields: [id_utilisateurID], references: [id_utilisateur])
-  id_utilisateurID Int
+  id_utilisateurID Int @unique
 }
