@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>           <!--setup Tailwindcss + React.js -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body class="bg-sky-950">
+    <div id="root"></div>
+    <script type="text/babel"> //babel pour utiliser JSX de React
+      const { useState }=React;
+      function App(){
+        const [loading, setLoading] = useState(false);
+        const handleSubmit = async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          try{
+            const response = await fetch('', { //dans le fetch, doit mettre le moyen de créer le salon 
+              method: 'POST',
+            });
+          }//peut enlever si tout est bon ou bien le laisser pour debug si pb
+          catch(error){
+            console.error("Erreur dans la création de salon : ", error);
+          }
+          setLoading(false);
+        };
+        return (
+          <div class="min-h-screen flex items-center justify-center">
+            <div class="bg-gray-900 p-8 rounded-lg shadow-lg text-center">
+              <h1 class="text-4xl font-bold text-white mb-6">Create a Room</h1>
+              <p class="text-gray-400 mb-8">Click the button below to create a new room</p>
+              <form onSubmit={handleSubmit}>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                >
+                  {loading ? "Creating..." : "Create Room"}
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      }
+      ReactDOM.render(<App />, document.getElementById('root')); //met le front dans le div root
+    </script>
+  </body>
+</html>
