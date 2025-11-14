@@ -25,6 +25,9 @@ model Salon {
   horodatage_sec Int
   maj_etat_le DateTime @updatedAt
   cree_le DateTime @default(now())
+  id_playlist Playlist?
+  id_etat EtatSalonHistorique[]
+  id_banip BanIp[]
 }
 
 model Participation {
@@ -38,6 +41,8 @@ model Participation {
   rejoint_le DateTime @default(now())
   quitte_le DateTime? 
   id_message Message[]
+  id_playlist Playlist[]
+  id_elements ElementPlaylist[]
 }
 
 model Utilisateur {
@@ -48,6 +53,7 @@ model Utilisateur {
   cree_le DateTime @default(now())
   modifie_le DateTime @updatedAt
   id_participation Participation[]
+  id_ban_user BanUtilisateur
 }
 
 model Message {
@@ -57,4 +63,54 @@ model Message {
   type String
   contenu String
   cree_le DateTime @default(now())
+}
+
+model Playlist {
+  id_playlist Int @id @default(autoincrement())
+  id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
+  id_salonID Int @unique    // pour l'instant il n'y a qu'une playlist par salon a voir avant la création de la base
+  cree_par Participation? @relation(fields: [id_particiaptionID], references: [id_participation]) 
+  id_particiaptionID Int? @unique
+  cree_le DateTime @default(now())
+  id_element_playlist ElementPlaylist[]
+}
+
+model ElementPlaylist {
+  id_element_playlist Int @id @default(autoincrement())
+  id_playlist Playlist @relation(fields: [id_playlistID], references: [id_playlist])
+  id_playlistID Int
+  fournisseur String
+  video_id String
+  position Int
+  ajoutee_par Participation @relation(fields: [ajoutee_parID], references: [id_participation])
+  ajoutee_parID Int
+}
+
+model EtatSalonHistorique {
+  id_eta Int @id @default(autoincrement())
+  id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
+  id_salonID Int
+  video_id String
+  etat_lecture 
+  horodatage_sec Int
+  vitesse 
+  enregistree_le DateTime @default(now())
+}
+
+model BanIp {
+  id_ban Int @id @default(autoincrement())
+  id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
+  id_salonID Int
+  ip String
+  expire_le DateTime
+  raison String
+  cree_le DateTime @default(now())
+}
+
+model BanUtilisateur {
+  id_ban_user Int @id @default(autoincrement())
+  id_salon Salon @relation(fields: [id_salonID], references: [id_salon])
+  id_salonID Int
+  id_utilisateur Utilisateur @relation(fields: [id_utilisateurID], references: [id_utilisateur])
+  id_utilisateurID Int
 }
