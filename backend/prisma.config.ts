@@ -10,4 +10,8 @@ export default defineConfig({
   datasource: {
     url: env("DATABASE_URL"),
   },
+  // @ts-expect-error 
+  seed: {
+    command: "ts-node prisma/seed.ts",
+  },
 });

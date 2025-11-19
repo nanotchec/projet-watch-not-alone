@@ -6,6 +6,8 @@ import { Server as SocketIOServer } from "socket.io";
 import { env } from "./env";
 import { prisma } from "./prisma";
 
+import salonRoutes from "./routes/salon.routes";
+
 async function main() {
   const app = express();
   const server = http.createServer(app);
@@ -17,6 +19,8 @@ async function main() {
 
   app.use(cors({ origin: env.corsOrigins.length > 0 ? env.corsOrigins : "*" }));
   app.use(express.json());
+
+  app.use("/salon", salonRoutes);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, environment: env.nodeEnv });

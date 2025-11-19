@@ -3,11 +3,21 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@prisma/client": [
+        "node_modules/.prisma/client"
+      ]
+    }
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "prisma",
+    "prisma.config.ts"
+  ]
 }
