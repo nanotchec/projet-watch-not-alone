@@ -12,7 +12,6 @@ export const createSalon = async (req: Request, res: Response) => {
 
         // pour creer l'utilisateur, le salon et la participation
         const result = await prisma.$transaction(async (tx) => {
-            // Créer l'utilisateur (invité pour l'instant)
             const user = await tx.utilisateur.create({
                 data: {
                     pseudo,
@@ -45,7 +44,17 @@ export const createSalon = async (req: Request, res: Response) => {
                 },
             });
 
-            return { salon, user, participation };
+            // lier participation au salon
+            await tx.participation.update({
+                where: { id_participation: participation.id_participation },
+                data: {
+                    id_salon: {
+                        connect: { id_salon: salon.id_salon }
+                    }
+                },
+            });
+
+            return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
         });
 
         res.status(201).json(result);

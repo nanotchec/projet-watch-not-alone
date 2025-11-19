@@ -18,7 +18,8 @@ model Salon {
   id_salon Int @id @default(autoincrement())
   code_partage String
   nom String
-  id_participation_hote Participation? @relation(fields: [id_participation_hoteID], references: [id_participation])
+  id_participation_hote Participation? @relation("SalonHote", fields: [id_participation_hoteID], references: [id_participation])
+  participations Participation[] @relation("SalonParticipations")
   id_participation_hoteID Int @unique
   etat_lecture String
   fournisseur String
@@ -34,9 +35,11 @@ model Salon {
 
 model Participation {
   id_participation Int @id @default(autoincrement())
-  id_participation_hote Salon?
+  id_participation_hote Salon? @relation("SalonHote")
   id_utilisateur Utilisateur? @relation(fields: [id_utilisateurID], references: [id_utilisateur])
   id_utilisateurID Int
+  id_salon Salon? @relation("SalonParticipations", fields: [id_salonID], references: [id_salon])
+  id_salonID Int?
   pseudo String
   role String
   ip String
