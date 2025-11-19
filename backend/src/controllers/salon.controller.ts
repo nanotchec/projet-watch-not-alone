@@ -80,40 +80,36 @@ export const joinSalon = async (req: Request, res: Response) => {
             },
         });
 
-        if (!salon.id_salon) {
-            res.status(404).json({ error: "le salon n'existe pas"});
+        // Correction : vérifier si 'salon' est null avant d'accéder 
+        if (!salon) {
+            res.status(404).json({ error: "le salon n'existe pas" });
+            return; // Correction : Il faut return ici pour ne pas continuer 
         }
 
-        //create new participation, with required user
-        const user = await prisma.utilisateur.create({
-            data: {
-                pseudo,
-                email: `guest_${Date.now()}@example.com`, // Placeholder
-                mot_de_passe_hache: "guest", // Placeholder
-            },
+        // Correction : Utilisation d'une transaction pour tout creer d'un coup (plus sûr)
+        const result = await prisma.$transaction(async (tx) => {
+            const user = await tx.utilisateur.create({
+                data: {
+                    pseudo,
+                    email: `guest_${Date.now()}@example.com`, // Placeholder
+                    mot_de_passe_hache: "guest", // Placeholder
+                },
+            });
+
+            const participation = await tx.participation.create({
+                data: {
+                    pseudo,
+                    role: "MEMBER", // Correction : On rejoint en tant que membre, pas HOST
+                    ip: req.ip || "127.0.0.1",
+                    id_utilisateurID: user.id_utilisateur,
+                    id_salonID: salon.id_salon // Correction : Liaison directe au salon
+                },
+            });
+
+            return { salon, user, participation };
         });
 
-        const participation = await prisma.participation.create({
-            data: {
-                pseudo,
-                role: "HOST",
-                ip: req.ip || "127.0.0.1",
-                id_utilisateurID: user.id_utilisateur,
-            },
-        });
-
-        await prisma.participation.update({
-            where: { id_participation: participation.id_participation },
-            data: {
-                id_salon: {
-                    connect: { id_salon: salon.id_salon }
-                }
-            },
-        });
-
-        // maj le salon (rajout participation?)
-        //#TODO:
-        res.status(201).json(salon);
+        res.status(201).json(result);
     } catch (error) {
         console.error("Erreur join salon:", error);
         res.status(500).json({ error: "Erreur lors de connexion au salon" });
