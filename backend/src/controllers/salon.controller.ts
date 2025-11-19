@@ -80,11 +80,42 @@ export const joinSalon = async (req: Request, res: Response) => {
             },
         });
 
+        if (!salon.id_salon) {
+            res.status(404).json({ error: "le salon n'existe pas"});
+        }
+
+        //create new participation, with required user
+        const user = await prisma.utilisateur.create({
+            data: {
+                pseudo,
+                email: `guest_${Date.now()}@example.com`, // Placeholder
+                mot_de_passe_hache: "guest", // Placeholder
+            },
+        });
+
+        const participation = await prisma.participation.create({
+            data: {
+                pseudo,
+                role: "HOST",
+                ip: req.ip || "127.0.0.1",
+                id_utilisateurID: user.id_utilisateur,
+            },
+        });
+
+        await prisma.participation.update({
+            where: { id_participation: participation.id_participation },
+            data: {
+                id_salon: {
+                    connect: { id_salon: salon.id_salon }
+                }
+            },
+        });
+
         // maj le salon (rajout participation?)
         //#TODO:
         res.status(201).json(salon);
     } catch (error) {
-        console.error("Erreur jion salon:", error);
+        console.error("Erreur join salon:", error);
         res.status(500).json({ error: "Erreur lors de connexion au salon" });
     }
 };
