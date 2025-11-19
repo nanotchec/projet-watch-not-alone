@@ -54,3 +54,28 @@ export const createSalon = async (req: Request, res: Response) => {
         res.status(500).json({ error: "Erreur lors de la création du salon" });
     }
 };
+
+export const joinSalon = async (req: Request, res: Response) => {
+    try {
+        const { codePartage, pseudo } = req.body;
+
+        if (!codePartage || !pseudo) {
+            res.status(400).json({ error: "code partage du salon et pseudo requis" });
+            return;
+        }
+
+        // get info salon 
+        const salon = await prisma.salon.findFirst({
+            where: {
+                code_partage: codePartage,
+            },
+        });
+
+        // maj le salon (rajout participation?)
+        //#TODO:
+        res.status(201).json(salon);
+    } catch (error) {
+        console.error("Erreur jion salon:", error);
+        res.status(500).json({ error: "Erreur lors de connexion au salon" });
+    }
+};
