@@ -83,7 +83,37 @@ export const joinSalon = async (req: Request, res: Response) => {
         // Correction : vérifier si 'salon' est null avant d'accéder 
         if (!salon) {
             res.status(404).json({ error: "le salon n'existe pas" });
-            return; // Correction : Il faut return ici pour ne pas continuer 
+            return;
+        }
+
+        // vérification Ban IP
+        const userIp = req.ip || "127.0.0.1";
+        const isBanned = await prisma.banIp.findFirst({
+            where: {
+                id_salonID: salon.id_salon,
+                ip: userIp,
+                expire_le: {
+                    gt: new Date(), // expire_le > maintenant
+                },
+            },
+        });
+
+        if (isBanned) {
+            res.status(403).json({ error: "Accès refusé : Vous êtes banni de ce salon." });
+            return;
+        }
+
+        // vérification pseudo unique
+        const pseudoPris = await prisma.participation.findFirst({
+            where: {
+                id_salonID: salon.id_salon,
+                pseudo: pseudo,
+            },
+        });
+
+        if (pseudoPris) {
+            res.status(409).json({ error: "Ce pseudo est déjà utilisé dans ce salon." });
+            return;
         }
 
         // Correction : Utilisation d'une transaction pour tout creer d'un coup (plus sûr)
