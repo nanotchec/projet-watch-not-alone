@@ -23,7 +23,7 @@ const RoomApp: React.FC = () => {
       if (mode === 'create') {
         const roomName = formData.get('room-name') as string;
         const userName = formData.get('user-name') as string;
-        response = await fetch('/salon/', {
+        response = await fetch('http://localhost:3000/salon/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -37,7 +37,7 @@ const RoomApp: React.FC = () => {
       } else {
         const codePartage = formData.get('code-partage') as string;
         const userName = formData.get('user-name') as string;
-        response = await fetch('/salon/join', {
+        response = await fetch('http://localhost:3000/salon/join', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -13,11 +13,20 @@ async function main() {
   const server = http.createServer(app);
   const io = new SocketIOServer(server, {
     cors: {
-      origin: env.corsOrigins.length > 0 ? env.corsOrigins : "*",
+      origin: "*", // Allow all for socket.io in dev to avoid issues
     },
   });
 
-  app.use(cors({ origin: env.corsOrigins.length > 0 ? env.corsOrigins : "*" }));
+  // Explicitly allow common frontend ports if environment is restrictive, or default to *
+  const allowedOrigins = [
+    ...env.corsOrigins,
+    "http://localhost:5173",
+    "http://localhost:4173"
+  ].filter(Boolean);
+
+  app.use(cors({
+    origin: allowedOrigins.length > 0 ? allowedOrigins : "*"
+  }));
   app.use(express.json());
 
   app.use("/salon", salonRoutes);
