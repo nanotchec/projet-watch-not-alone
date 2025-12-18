@@ -36,6 +36,7 @@ async function main() {
 
   server.listen(env.port, () => {
     console.log(`Serveur backend prêt sur http://localhost:${env.port}`);
+    console.log(`CORS origins allowed: ${env.corsOrigins.length > 0 ? env.corsOrigins.join(', ') : '*'}`);
   });
 }
 

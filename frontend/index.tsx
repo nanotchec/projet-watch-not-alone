@@ -16,22 +16,22 @@ type Mode = 'create' | 'join';
 const SalonApp: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false); // état de chargement
   const [mode, setMode] = useState<Mode>('create'); // 'create' ou 'join'
-  
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     // asynchrone car attend une réponse du serveur
     e.preventDefault(); // la page ne se recharge pas lors du submit
     setLoading(true); // indicateur de chargement
-    
+
     const formData = new FormData(e.currentTarget);
-    
+
     try {
       let response: Response;
-      
+
       if (mode === 'create') {
         const roomName = formData.get('room-name') as string;
         const userName = formData.get('user-name') as string;
-        
-        response = await fetch('http://localhost:3000/salon/', {
+
+        response = await fetch('/salon/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -45,8 +45,8 @@ const SalonApp: React.FC = () => {
       } else {
         const codePartage = formData.get('code-partage') as string;
         const userName = formData.get('user-name') as string;
-        
-        response = await fetch('http://localhost:3000/salon/join', {
+
+        response = await fetch('/salon/join', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -58,16 +58,16 @@ const SalonApp: React.FC = () => {
           }),
         });
       }
-      
+
       if (!response.ok) {
         const error: ErrorResponse = await response.json();
         // si une erreur s'est produite, on la récupère et on l'affiche
         alert(`Erreur: ${error.error}`);
         return;
       }
-      
+
       const data: SalonResponse = await response.json();
-      
+
       if (mode === 'create') {
         // affiche le code du salon créé
         alert(`Salon créé avec succès! Code: ${data.salon.code_partage}`);
@@ -93,32 +93,30 @@ const SalonApp: React.FC = () => {
         <p className="text-gray-400 mb-6">
           {mode === 'create' ? 'Créez votre propre salon' : 'Entrez le code du salon'}
         </p>
-        
+
         <div className="flex gap-2 mb-6">
           <button
             type="button"
             onClick={() => setMode('create')}
-            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
-              mode === 'create' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
+            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${mode === 'create'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
           >
             Créer
           </button>
           <button
             type="button"
             onClick={() => setMode('join')}
-            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${
-              mode === 'join' 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
+            className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-colors ${mode === 'join'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
           >
             Rejoindre
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit}>
           {mode === 'create' ? (
             <input
@@ -138,7 +136,7 @@ const SalonApp: React.FC = () => {
               required
             />
           )}
-          
+
           <input
             type="text"
             name="user-name"
@@ -146,7 +144,7 @@ const SalonApp: React.FC = () => {
             className="p-2 rounded-lg w-full text-white bg-gray-800 border border-gray-700 mb-4"
             required
           />
-          
+
           <button
             type="submit"
             disabled={loading}

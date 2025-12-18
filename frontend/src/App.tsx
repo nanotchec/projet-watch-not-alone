@@ -6,7 +6,7 @@ interface RoomResponse {
     code_partage: string;
   };
 }
-interface ErrorResponse{
+interface ErrorResponse {
   error: string;
 }
 type Mode = 'create' | 'join';
@@ -18,15 +18,15 @@ const RoomApp: React.FC = () => {
     e.preventDefault(); // la page ne se recharge pas lors du submit
     setLoading(true); // indicateur de chargement
     const formData = new FormData(e.currentTarget);
-    try{
+    try {
       let response: Response;
-      if(mode==='create'){
-        const roomName=formData.get('room-name') as string;
-        const userName=formData.get('user-name') as string;
-        response=await fetch('http://localhost:3000/salon/',{
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
+      if (mode === 'create') {
+        const roomName = formData.get('room-name') as string;
+        const userName = formData.get('user-name') as string;
+        response = await fetch('/salon/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             // demande au serveur de créer un salon avec le nom et pseudo que l'utilisateur a entré
@@ -34,13 +34,13 @@ const RoomApp: React.FC = () => {
             pseudo: userName,
           }),
         });
-      }else{
-        const codePartage=formData.get('code-partage') as string;
-        const userName=formData.get('user-name') as string;
-        response=await fetch('http://localhost:3000/salon/join', {
-          method:'POST',
-          headers:{
-            'Content-Type':'application/json',
+      } else {
+        const codePartage = formData.get('code-partage') as string;
+        const userName = formData.get('user-name') as string;
+        response = await fetch('/salon/join', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             //sinon, c'est une demande de rejoindre un salon existant avec le code et pseudo
@@ -49,24 +49,24 @@ const RoomApp: React.FC = () => {
           }),
         });
       }
-      if(!response.ok){
-        const error: ErrorResponse=await response.json();
+      if (!response.ok) {
+        const error: ErrorResponse = await response.json();
         //si une erreur s'est produite, on la récupère et on l'affiche
         alert(`Erreur: ${error.error}`);
         return;
       }
-      const data: RoomResponse=await response.json();
-      if(mode==='create'){
+      const data: RoomResponse = await response.json();
+      if (mode === 'create') {
         //affiche le code du salon créé
         alert(`Salon créé avec succès! Code: ${data.salon.code_partage}`);
-      }else{
+      } else {
         //affiche un message de succès pour rejoindre
         alert(`Vous avez rejoint le salon "${data.salon.nom}" avec succès!`);
       }
-    }catch(error){
+    } catch (error) {
       console.error('Erreur:', error); // log de l'erreur pour debug
       alert('Erreur lors de la communication avec le serveur');
-    }finally{
+    } finally {
       setLoading(false);
     }
   };
@@ -81,16 +81,16 @@ const RoomApp: React.FC = () => {
           {mode === 'create' ? 'Créez votre propre salon' : 'Entrez le code du salon'}
         </p>
         <div className="flex gap-2 mb-6">
-          <button type="button" onClick={()=>setMode('create')} className={`button-selection ${mode==='create' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Créer</button>
-          <button type="button" onClick={()=>setMode('join')} className={`button-selection ${mode==='join' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Rejoindre</button>
+          <button type="button" onClick={() => setMode('create')} className={`button-selection ${mode === 'create' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Créer</button>
+          <button type="button" onClick={() => setMode('join')} className={`button-selection ${mode === 'join' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Rejoindre</button>
         </div>
         <form onSubmit={handleSubmit}>
           {mode === 'create' ? (
-            <input type="text" name="room-name" placeholder="Nom du salon" className="input-room" required/>
+            <input type="text" name="room-name" placeholder="Nom du salon" className="input-room" required />
           ) : (   //mode 'join'
-            <input type="text" name="code-partage" placeholder="Code du salon (6 caractères)" maxLength={6} className="input-room" required/>
+            <input type="text" name="code-partage" placeholder="Code du salon (6 caractères)" maxLength={6} className="input-room" required />
           )}
-          <input type="text" name="user-name" placeholder="Votre pseudo" className="input-room" required/>
+          <input type="text" name="user-name" placeholder="Votre pseudo" className="input-room" required />
           <button type="submit" disabled={loading} className="button-submit">
             {loading ? "Chargement..." : mode === 'create' ? "Créer le salon" : "Rejoindre le salon"}
           </button>
