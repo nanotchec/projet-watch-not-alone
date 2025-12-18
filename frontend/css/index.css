@@ -1,0 +1,31 @@
+@import "tailwindcss";
+@tailwind utilities;
+
+
+@layer components {
+  .input-room{
+    @apply mb-4 p-2 rounded-lg w-full text-white bg-gray-800 border border-gray-700;
+  }
+  .input-room:focus{
+    @apply outline-1 outline-offset-1 ring-2 ring-indigo-500 border-indigo-500;
+  }
+  .input-room:hover{
+    @apply shadow-md;
+  }
+  .input-room:invalid{
+    @apply border-pink-400 focus:outline focus:border-pink-300 focus:outline-pink-400 hover:border-pink-300;
+  }
+
+  .button-selection{
+    @apply flex-1 py-2 px-4 rounded-lg font-semibold transition-colors;
+  }
+  .button-selection-mode{
+    @apply bg-blue-600 text-white;
+  }
+  .button-selection-unmode{
+    @apply bg-gray-700 text-gray-300 hover:bg-gray-600;
+  }
+  .button-submit{
+    @apply bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors w-full
+  }
+}
