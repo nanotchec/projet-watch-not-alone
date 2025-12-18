@@ -31,7 +31,7 @@ const SalonApp: React.FC = () => {
         const roomName = formData.get('room-name') as string;
         const userName = formData.get('user-name') as string;
 
-        response = await fetch('http://localhost:3000/salon/', {
+        response = await fetch('/salon/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -46,7 +46,7 @@ const SalonApp: React.FC = () => {
         const codePartage = formData.get('code-partage') as string;
         const userName = formData.get('user-name') as string;
 
-        response = await fetch('http://localhost:3000/salon/join', {
+        response = await fetch('/salon/join', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
