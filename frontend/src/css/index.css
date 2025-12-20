@@ -1,6 +1,28 @@
 @import "tailwindcss";
 @tailwind utilities;
 
+/* Styles de Timéo */
+
+@layer utilities {
+  .font-anton {
+    font-family: "Anton", sans-serif;
+    text-shadow: 0 0 7px rgb(0, 0, 0);
+  }
+  
+  .font-ibm {
+    font-family: 'IBM Plex Sans Condensed', sans-serif;
+  }
+  
+  .typed-cursor--blink {
+    animation: blink 0.7s infinite;
+  }
+  
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+}
+
+/* Styles de Alain */
 
 @layer components {
   .input-room{
