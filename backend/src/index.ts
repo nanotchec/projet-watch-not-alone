@@ -7,17 +7,18 @@ import { env } from "./env";
 import { prisma } from "./prisma";
 
 import salonRoutes from "./routes/salon.routes";
+import { setupSalonSockets } from "./sockets/salon.handler";
 
 async function main() {
   const app = express();
   const server = http.createServer(app);
   const io = new SocketIOServer(server, {
     cors: {
-      origin: "*", // Allow all for socket.io in dev to avoid issues
+      origin: "*", // Autoriser tout pour socket.io en dev pour éviter les problèmes
     },
   });
 
-  // Explicitly allow common frontend ports if environment is restrictive, or default to *
+  // Autoriser explicitement les ports frontends courants si l'environnement est restrictif, ou par défaut *
   const allowedOrigins = [
     ...env.corsOrigins,
     "http://localhost:5173",
@@ -35,12 +36,14 @@ async function main() {
     res.json({ ok: true, environment: env.nodeEnv });
   });
 
-  io.on("connection", (socket) => {
-    console.log(`Socket connecté: ${socket.id}`);
+  setupSalonSockets(io);
 
-    socket.on("disconnect", (reason) => {
-      console.log(`Socket déconnecté (${socket.id}) : ${reason}`);
-    });
+  // Log de connexion basique fourni par le handler ou supprimer si redondant
+  io.engine.on("connection_error", (err) => {
+    console.log(err.req);      // l'objet requête
+    console.log(err.code);     // le code d'erreur, par exemple 1
+    console.log(err.message);  // le message d'erreur, par exemple "Session ID unknown"
+    console.log(err.context);  // contexte d'erreur supplémentaire
   });
 
   server.listen(env.port, () => {
