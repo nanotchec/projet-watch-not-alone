@@ -191,7 +191,7 @@ export function useYouTubePlayer() {
       alert('Cette vidéo est déjà dans ajoutée.');
       return;
     }
-
+    
     setPlaylist((prev) => {
       //numéro de la vidéo dans la playlist
       const videoNumber = prev.length + 1;

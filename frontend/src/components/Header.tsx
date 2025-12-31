@@ -24,7 +24,7 @@ export default function Header({ showSearch = false, onAddVideo }: HeaderProps) 
         <img src="/logo.png" alt="Logo" className="h-8 w-auto" />
         <span className="text-2xl text-white font-anton">WatchNotAlone</span>
       </Link>
-      {/* barre de recherche youtube (si activée) */}
+      {/* barre de recherche youtube */}
       {showSearch && (
         <form onSubmit={handleSubmit} className="flex flex-1 max-w-xl items-center gap-2 justify-center">
           <input

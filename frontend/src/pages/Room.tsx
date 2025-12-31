@@ -1,11 +1,15 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import { useYouTubePlayer } from '../services/useYouTubePlayer';
 
 export default function Room() {
+  //récupère les paramètres de l'url code et nom du salon
+  const [searchParams] = useSearchParams();
+  const roomName = searchParams.get('nom') || 'PAs de nom de salon';
+  const roomCode = searchParams.get('code') || 'Pas de code';
     //valeurs pour le chat et le salon
-  const [roomName] = useState('SALON1');
   const [chatMessages, setChatMessages] = useState<Array<{ text: string; author: string }>>([]);
   const [chatInput, setChatInput] = useState('');
 
