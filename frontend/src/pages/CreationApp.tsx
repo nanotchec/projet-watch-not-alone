@@ -1,4 +1,6 @@
-import React, { useState, FormEvent } from 'react';
+import React, { useState } from 'react';
+import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface RoomResponse {
   salon: {
@@ -11,6 +13,7 @@ interface ErrorResponse{
 }
 type Mode = 'create' | 'join';
 const RoomApp: React.FC = () => {
+  const navigate = useNavigate(); //pour rediriger vers une autre page
   const [loading, setLoading] = useState<boolean>(false); // état de chargement
   const [mode, setMode] = useState<Mode>('create'); // 'create' ou 'join'
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -56,13 +59,8 @@ const RoomApp: React.FC = () => {
         return;
       }
       const data: RoomResponse=await response.json();
-      if(mode==='create'){
-        //affiche le code du salon créé
-        alert(`Salon créé avec succès! Code: ${data.salon.code_partage}`);
-      }else{
-        //affiche un message de succès pour rejoindre
-        alert(`Vous avez rejoint le salon "${data.salon.nom}" avec succès!`);
-      }
+      //redirige vers la page room avec le code du salon dans l'url
+      navigate(`/room?code=${data.salon.code_partage}&nom=${encodeURIComponent(data.salon.nom)}`);
     }catch(error){
       console.error('Erreur:', error); // log de l'erreur pour debug
       alert('Erreur lors de la communication avec le serveur');
