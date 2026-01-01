@@ -145,3 +145,33 @@ export const joinSalon = async (req: Request, res: Response) => {
         res.status(500).json({ error: "Erreur lors de connexion au salon" });
     }
 };
+
+export const createMessage = async (req: Request, res: Response) => {
+    try {
+        const { message, pseudo, codePartage} = req.body;
+
+        const salon = await prisma.salon.findFirst({
+            where: {
+                code_partage: codePartage,
+            },
+        });
+
+        const qui = await prisma.participation.findFirst({
+            where: {
+                id_salonID: salon.id_salon,
+                pseudo: pseudo,
+            },
+        });
+        const result = await prisma.$transaction(async (tx) => {
+            const messages = await tx.message.create({
+                data: {
+                    id_participationID: qui.id_participation,
+                    contenu: message,
+                },
+            })});
+    }
+    catch (error) {
+        console.error("Erreur register message:", error);
+        res.status(500).json({ error: "Erreur lors de la prise en compte du message" });
+    }
+};

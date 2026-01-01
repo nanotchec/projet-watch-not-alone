@@ -13,6 +13,13 @@ interface StatePayload {
     videoId?: string;
 }
 
+interface MessageCont {
+    codePartage: string;
+    contenu: string;
+    cree: Date;
+    user: string;
+}
+
 export const setupSalonSockets = (io: Server) => {
     io.on("connection", (socket: Socket) => {
 
@@ -43,6 +50,41 @@ export const setupSalonSockets = (io: Server) => {
 
             // 4. Notifier les autres
             socket.to(roomName).emit("user_joined", { pseudo });
+        });
+
+        //MAJ chat
+        socket.on("update_message", async (message: MessageCont) => {
+            const { codePartage, contenu, cree, user} = message;
+            const roomName = `salon_${codePartage}`;
+            const participe = await prisma.participation.findFirst({
+                where: {
+                    id_salonID: `salon_$.id_salon`,
+                    pseudo: user,
+                },
+            });
+
+            // Sauvegarde en BDD
+            try {
+                await prisma.$transaction(async (tx) => {
+                const messages = await tx.message.create({
+                    data: {
+                        id_participationID: participe.id_participation,
+                        contenu: message,
+                        cree_le: cree,
+                    },
+                })});
+
+                // Broadcast aux autres (sauf l'émetteur)
+                socket.to(roomName).emit("chat_update", {
+                    message,
+                    user,
+                    contenu,
+                    cree,
+                });
+            }
+            catch (error) {
+                console.error("Erreur register message:", error);
+            }
         });
 
         // Mise à jour état (PLAY/PAUSE/SEEK)
