@@ -8,8 +8,8 @@ export default function Room() {
   //récupère les paramètres de l'url code et nom du salon
   const [searchParams] = useSearchParams();
   const roomName = searchParams.get('nom') || 'PAs de nom de salon';
-  const roomCode = searchParams.get('code') || 'Pas de code';
-    //valeurs pour le chat et le salon
+  // const roomCode = searchParams.get('code') || 'Pas de code'; // A utiliser pour le socket plus tard
+  //valeurs pour le chat et le salon
   const [chatMessages, setChatMessages] = useState<Array<{ text: string; author: string }>>([]);
   const [chatInput, setChatInput] = useState('');
 
@@ -124,9 +124,8 @@ export default function Room() {
                     <li
                       key={index}
                       onClick={() => loadVideo(index)}
-                      className={`cursor-pointer px-2 py-1 rounded hover:bg-blue-700 ${
-                        index === currentVideoIndex ? 'bg-blue-600 text-white' : ''
-                      }`}
+                      className={`cursor-pointer px-2 py-1 rounded hover:bg-blue-700 ${index === currentVideoIndex ? 'bg-blue-600 text-white' : ''
+                        }`}
                     >
                       {video.title}
                     </li>
