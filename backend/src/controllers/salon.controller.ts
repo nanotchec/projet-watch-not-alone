@@ -148,7 +148,12 @@ export const joinSalon = async (req: Request, res: Response) => {
 
 export const createMessage = async (req: Request, res: Response) => {
     try {
-        const { message, pseudo, codePartage} = req.body;
+        const { message, pseudo, codePartage } = req.body;
+
+        if (!message || !pseudo || !codePartage) {
+            res.status(400).json({ error: "Données incomplètes" });
+            return;
+        }
 
         const salon = await prisma.salon.findFirst({
             where: {
@@ -156,19 +161,32 @@ export const createMessage = async (req: Request, res: Response) => {
             },
         });
 
+        if (!salon) {
+            res.status(404).json({ error: "Salon introuvable" });
+            return;
+        }
+
         const qui = await prisma.participation.findFirst({
             where: {
                 id_salonID: salon.id_salon,
                 pseudo: pseudo,
             },
         });
-        const result = await prisma.$transaction(async (tx) => {
-            const messages = await tx.message.create({
-                data: {
-                    id_participationID: qui.id_participation,
-                    contenu: message,
-                },
-            })});
+
+        if (!qui) {
+            res.status(403).json({ error: "Vous ne participez pas à ce salon" });
+            return;
+        }
+
+        const result = await prisma.message.create({
+            data: {
+                id_ParticipationID: qui.id_participation,
+                contenu: message,
+                type: "TEXT",
+            },
+        });
+
+        res.status(201).json(result);
     }
     catch (error) {
         console.error("Erreur register message:", error);

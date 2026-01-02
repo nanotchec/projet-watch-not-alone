@@ -53,36 +53,53 @@ export const setupSalonSockets = (io: Server) => {
         });
 
         //MAJ chat
+        // MAJ chat
         socket.on("update_message", async (message: MessageCont) => {
-            const { codePartage, contenu, cree, user} = message;
+            const { codePartage, contenu, cree, user } = message;
             const roomName = `salon_${codePartage}`;
-            const participe = await prisma.participation.findFirst({
-                where: {
-                    id_salonID: `salon_$.id_salon`,
-                    pseudo: user,
-                },
-            });
 
-            // Sauvegarde en BDD
             try {
-                await prisma.$transaction(async (tx) => {
-                const messages = await tx.message.create({
+                // 1. D'abord on récupère le salon pour avoir son ID
+                const salon = await prisma.salon.findFirst({
+                    where: { code_partage: codePartage }
+                });
+
+                if (!salon) {
+                    console.error("Salon introuvable pour le message");
+                    return;
+                }
+
+                // 2. On récupère la participation
+                const participe = await prisma.participation.findFirst({
+                    where: {
+                        id_salonID: salon.id_salon,
+                        pseudo: user,
+                    },
+                });
+
+                if (!participe) {
+                    console.error("Participation introuvable pour le message");
+                    return;
+                }
+
+                // 3. Sauvegarde en BDD
+                await prisma.message.create({
                     data: {
-                        id_participationID: participe.id_participation,
-                        contenu: message,
+                        id_ParticipationID: participe.id_participation,
+                        contenu: contenu,
+                        type: "TEXT",
                         cree_le: cree,
                     },
-                })});
+                });
 
-                // Broadcast aux autres (sauf l'émetteur)
+                // 4. Broadcast aux autres (sauf l'émetteur)
                 socket.to(roomName).emit("chat_update", {
                     message,
                     user,
                     contenu,
                     cree,
                 });
-            }
-            catch (error) {
+            } catch (error) {
                 console.error("Erreur register message:", error);
             }
         });
