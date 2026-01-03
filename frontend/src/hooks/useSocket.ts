@@ -8,7 +8,7 @@ interface SyncState {
 }
 
 interface UseSocketOptions {
-  codePartage: string; 
+  codePartage: string;
   pseudo: string;
   onSyncState: (data: SyncState) => void; //utlisée pour faire un callback si un sync state est reçu
 }
@@ -26,7 +26,8 @@ export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions
 
   useEffect(() => {
     //connexion au serveur Socket.IO
-    const socket = io('http://localhost:3000', {
+    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const socket = io(socketUrl, {
       transports: ['websocket'],
       reconnection: true,
       reconnectionDelay: 1000,
