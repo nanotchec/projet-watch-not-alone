@@ -26,7 +26,7 @@ export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions
 
   useEffect(() => {
     //connexion au serveur Socket.IO
-    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+    const socketUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     const socket = io(socketUrl, {
       transports: ['websocket'],
       reconnection: true,
