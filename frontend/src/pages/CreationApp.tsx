@@ -7,6 +7,9 @@ interface RoomResponse {
     nom: string;
     code_partage: string;
   };
+  user: {
+    pseudo: string;
+  };
 }
 interface ErrorResponse{
   error: string;
@@ -60,7 +63,13 @@ const RoomApp: React.FC = () => {
       }
       const data: RoomResponse=await response.json();
       //redirige vers la page room avec le code du salon dans l'url
-      navigate(`/room?code=${data.salon.code_partage}&nom=${encodeURIComponent(data.salon.nom)}`);
+      navigate(`/room/${data.salon.code_partage}`,{
+        state: {
+          salonName: data.salon.nom,
+          userPseudo: data.user.pseudo,
+          codePartage: data.salon.code_partage,
+        },
+      });
     }catch(error){
       console.error('Erreur:', error); // log de l'erreur pour debug
       alert('Erreur lors de la communication avec le serveur');

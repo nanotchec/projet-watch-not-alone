@@ -1,19 +1,90 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import { useYouTubePlayer } from '../services/useYouTubePlayer';
+import { useSocket } from '../hooks/useSocket';
+
+interface LocationState {   //variables qui ne peuvent pas etre "modifier" directement dans l'url
+  salonName?: string;
+  userPseudo?: string;
+  codePartage?: string;
+}
 
 export default function Room() {
-  //récupère les paramètres de l'url code et nom du salon
-  const [searchParams] = useSearchParams();
-  const roomName = searchParams.get('nom') || 'PAs de nom de salon';
-  // const roomCode = searchParams.get('code') || 'Pas de code'; // A utiliser pour le socket plus tard
+  //récupère les paramètres des states venant du formulaire de CreationApp
+  const { code } = useParams<{code: string}>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const state = location.state as LocationState;
+
+  const [roomName] = useState(state?.salonName || 'undefined salon')
+  const [userPseudo] = useState(state?.userPseudo || 'undefined username');
+  const [codePartage] = useState(code || state?.codePartage || '');
+  const [blockClicks] = useState(true); //bloque les click sur le vidéo container
+
   //valeurs pour le chat et le salon
   const [chatMessages, setChatMessages] = useState<Array<{ text: string; author: string }>>([]);
   const [chatInput, setChatInput] = useState('');
 
   //gestion du lecteur youtube
+  const applySyncStateRef = useRef<((etat: 'PLAY' | 'PAUSE', timestamp: number, videoId?: string) => void) | null>(null);
+  const sendUpdateRef = useRef<((etat: 'PLAY' | 'PAUSE', timestamp: number, videoId?: string) => void) | null>(null);
+
+  useEffect(() => {   //si aucun code du salon valide n'est récupérable alors retourne une erreur puis kick vers Creation
+    if(!codePartage){
+      console.error('Code de salon introuvable, redirection vers creation de salon');
+      navigate('/creation');
+    }
+    if (userPseudo === 'undefiend username'){ //meme chose s'il n'a pas de pseudo non defini
+      console.error('Pseudo non identifiable, redirection vers creation de salon');
+      navigate('/creation');
+    }
+  }, [codePartage, navigate]);
+
+  //connexion websocket si roomcode existe
+  const { isConnected, error, sendUpdate } = useSocket({
+    codePartage,
+    pseudo: userPseudo,
+    // Callback appelé quand le serveur demande une synchronisation de l'état de lecture
+    // data contient: etat ('PLAY' ou 'PAUSE'), timestamp (position vidéo), videoId (ID de la vidéo)
+    onSyncState: useCallback((data) => {
+      console.log('Reçu sync_state:', data);
+      // Applique l'état de synchronisation via la référence du player
+      if (applySyncStateRef.current) {
+        applySyncStateRef.current(data.etat, data.timestamp, data.videoId);
+      }
+    }, []),
+  });
+
+  //stocker sendUpdate dans ref
+  useEffect(() => {
+    sendUpdateRef.current = sendUpdate;
+  }, [sendUpdate]);
+
+  //callbacks stables pour le player
+  const onPlayPauseCallback = useCallback((willPlay: boolean, timestamp: number) => {
+    console.log('Play/Pause:', { willPlay, timestamp });
+    if (sendUpdateRef.current) {
+      sendUpdateRef.current(willPlay ? 'PLAY' : 'PAUSE', timestamp);
+    }
+  }, []);
+
+  const onSeekCallback = useCallback((timestamp: number) => {
+    console.log('Seek:', { timestamp });
+    if (sendUpdateRef.current) {
+      sendUpdateRef.current('PLAY', timestamp);
+    }
+  }, []);
+
+  const onVideoChangeCallback = useCallback((videoId: string) => {
+    console.log('Video change:', { videoId });
+    if (sendUpdateRef.current) {
+      sendUpdateRef.current('PAUSE', 0, videoId);
+    }
+  }, []);
+
+  //gestion du lecteur YouTube
   const {
     containerRef,
     playlist,
@@ -28,7 +99,19 @@ export default function Room() {
     toggleFullscreen,
     loadVideo,
     addVideo,
-  } = useYouTubePlayer();
+    applySyncState,
+  } = useYouTubePlayer({
+    syncCallbacks: {
+      onPlayPause: onPlayPauseCallback,
+      onSeek: onSeekCallback,
+      onVideoChange: onVideoChangeCallback,
+    },
+  });
+
+  //stocker applySyncState dans ref
+  useEffect(() => {
+    applySyncStateRef.current = applySyncState;
+  }, [applySyncState]);
 
   //gestion de l'envoi de message dans le chat
   const handleChatSubmit = (e: React.FormEvent) => {
@@ -38,15 +121,45 @@ export default function Room() {
     setChatInput('');
   };
 
-  //page du salon
+  //ui d'état de connexion (uniquement si roomCode existe)
+  const ConnectionStatus = () => {
+    if (!codePartage) return null; //pas de statut si il n'est pas dans un salon valide
+    if (error) {
+      return (
+        <div className="bg-red-600 text-white px-4 py-2 rounded-lg mb-4">
+          Erreur: {error}
+        </div>              //si il n'arrive pas a se connecter
+      );
+    }
+    if (!isConnected) {
+      return (
+        <div className="bg-yellow-600 text-white px-4 py-2 rounded-lg mb-4 flex items-center">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+          Connexion au serveur...
+        </div>      //entrain de faire une connexion vers le serv
+      );
+    }
+    return (
+      <div className="bg-green-600 text-white px-4 py-2 rounded-lg mb-4">
+        Connecté - Synchronisé avec le salon
+      </div>      //si réussi
+    );
+  };
+
   return (
     <div className="bg-gray-900 text-white flex flex-col min-h-screen">
       <Header showSearch onAddVideo={addVideo} />
       <main className="flex flex-1 overflow-hidden">
         <Sidebar />
         <section className="flex flex-col flex-1 bg-gray-900 p-6 overflow-hidden">
+          {/* statut de connexion */}
+          <ConnectionStatus />
+
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 space-y-3 md:space-y-0">
-            <h1 className="text-2xl font-anton font-bold">Nom du salon : {roomName}</h1>
+            <h1 className="text-2xl font-anton font-bold">
+              Salon: {roomName} ({codePartage})
+            </h1>
+            <p className="text-gray-400">Connecté en tant que: {userPseudo}</p>
           </div>
 
           <div className="flex flex-1 space-x-6 overflow-hidden">
@@ -55,6 +168,10 @@ export default function Room() {
               {/* conteneur du player youtube */}
               <div className="relative w-full flex-grow pt-[56.25%] bg-black">
                 <div ref={containerRef} className="absolute inset-0"></div>
+                {/* overlay transparent qui bloque les interactions */}
+                {blockClicks && (
+                  <div className="absolute inset-0 z-40 bg-transparent cursor-not-allowed" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} onContextMenu={(e) => { e.preventDefault(); }} onDragStart={(e) => { e.preventDefault(); }}/>
+                )}
               </div>
 
               {/* controles du lecteur youtube */}
@@ -124,8 +241,9 @@ export default function Room() {
                     <li
                       key={index}
                       onClick={() => loadVideo(index)}
-                      className={`cursor-pointer px-2 py-1 rounded hover:bg-blue-700 ${index === currentVideoIndex ? 'bg-blue-600 text-white' : ''
-                        }`}
+                      className={`cursor-pointer px-2 py-1 rounded hover:bg-blue-700 ${
+                        index === currentVideoIndex ? 'bg-blue-600 text-white' : ''
+                      }`}
                     >
                       {video.title}
                     </li>
