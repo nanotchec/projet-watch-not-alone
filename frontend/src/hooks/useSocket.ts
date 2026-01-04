@@ -7,15 +7,23 @@ interface SyncState {
   videoId?: string;
 }
 
+interface ChatMessage {
+  user: string;
+  contenu: string;
+  cree: Date;
+}
+
 interface UseSocketOptions {
   codePartage: string;
   pseudo: string;
   onSyncState: (data: SyncState) => void; //utlisée pour faire un callback si un sync state est reçu
+  onChatMessage?: (message: ChatMessage) => void; //de même pour le chat
 }
 
-export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions) => {
+export const useSocket = ({ codePartage, pseudo, onSyncState, onChatMessage }: UseSocketOptions) => {
   const socketRef = useRef<Socket | null>(null);
   const onSyncStateRef = useRef(onSyncState); //stocker le callback dans un ref
+  const onChatMessageRef = useRef(onChatMessage); //même chose pour le chat
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,6 +31,11 @@ export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions
   useEffect(() => {
     onSyncStateRef.current = onSyncState;
   }, [onSyncState]);
+
+  //meme chose pour message
+  useEffect(() => {
+    onChatMessageRef.current = onChatMessage;
+  }, [onChatMessage]);
 
   useEffect(() => {
     //connexion au serveur Socket.IO
@@ -63,6 +76,14 @@ export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions
       onSyncStateRef.current(data);
     });
 
+    //écoute les updates de message du chat
+    socket.on('chat_update', (data: ChatMessage) => {
+      console.log('chat_update reçu:', data);
+      if (onChatMessageRef.current) {
+        onChatMessageRef.current(data);
+      }
+    });
+
     //gestion des erreurs
     socket.on('connect_error', (err) => {
       console.error('Erreur de connexion:', err);
@@ -96,9 +117,30 @@ export const useSocket = ({ codePartage, pseudo, onSyncState }: UseSocketOptions
     console.log('Envoi update_state:', payload);
     socketRef.current.emit('update_state', payload);
   };
+
+  //fonction pour envoyer un message de chat ("similaire" a sendUpdate)
+  const sendMessage = (contenu: string) => {
+    if (!socketRef.current || !isConnected) {
+      console.warn('Socket non connecté, impossible d\'envoyer le message');
+      return;
+    }
+    if (!contenu.trim()) {
+      console.warn('Message vide, envoi annulé');
+      return;
+    }
+    const payload = { //un payload avec info synchro sur les users
+      codePartage,
+      contenu,
+      cree: new Date(),
+      user: pseudo,
+    };
+    console.log('Envoi update_message:', payload);
+    socketRef.current.emit('update_message', payload);
+  };
   return {
     isConnected,
     error,
     sendUpdate,
+    sendMessage,
   };
 };

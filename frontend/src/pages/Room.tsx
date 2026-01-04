@@ -11,6 +11,12 @@ interface LocationState {   //variables qui ne peuvent pas etre "modifier" direc
   codePartage?: string;
 }
 
+interface ChatMessage {
+  author: string;
+  text: string;
+  timestamp: Date;
+}
+
 export default function Room() {
   //récupère les paramètres des states venant du formulaire de CreationApp
   const { code } = useParams<{code: string}>();
@@ -24,12 +30,14 @@ export default function Room() {
   const [blockClicks] = useState(true); //bloque les click sur le vidéo container
 
   //valeurs pour le chat et le salon
-  const [chatMessages, setChatMessages] = useState<Array<{ text: string; author: string }>>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const chatContainerRef = useRef<HTMLDivElement>(null);  //ref pour auto scroll vers le bas le message container
 
-  //gestion du lecteur youtube
+  //gestion du lecteur youtube + chat
   const applySyncStateRef = useRef<((etat: 'PLAY' | 'PAUSE', timestamp: number, videoId?: string) => void) | null>(null);
   const sendUpdateRef = useRef<((etat: 'PLAY' | 'PAUSE', timestamp: number, videoId?: string) => void) | null>(null);
+  const sendMessageRef = useRef<((contenu: string) => void) | null>(null);
 
   useEffect(() => {   //si aucun code du salon valide n'est récupérable alors retourne une erreur puis kick vers Creation
     if(!codePartage){
@@ -40,10 +48,22 @@ export default function Room() {
       console.error('Pseudo non identifiable, redirection vers creation de salon');
       navigate('/creation');
     }
-  }, [codePartage, navigate]);
+  }, [codePartage, userPseudo, navigate]);
+
+  //callbacks pour recevoir des messages
+  const onChatMessageCallback = useCallback((data: { user: string; contenu: string; cree: Date }) => {
+    console.log('Message reçu:', data);
+    
+    const newMessage: ChatMessage = {
+      author: data.user,
+      text: data.contenu,
+      timestamp: new Date(data.cree),
+    };
+    setChatMessages((prev) => [...prev, newMessage]); //ajoute le nouveau message dans les messages actuels
+  }, []);
 
   //connexion websocket si roomcode existe
-  const { isConnected, error, sendUpdate } = useSocket({
+  const { isConnected, error, sendUpdate, sendMessage } = useSocket({
     codePartage,
     pseudo: userPseudo,
     // Callback appelé quand le serveur demande une synchronisation de l'état de lecture
@@ -55,12 +75,25 @@ export default function Room() {
         applySyncStateRef.current(data.etat, data.timestamp, data.videoId);
       }
     }, []),
+    onChatMessage: onChatMessageCallback,
   });
 
   //stocker sendUpdate dans ref
   useEffect(() => {
     sendUpdateRef.current = sendUpdate;
   }, [sendUpdate]);
+
+  //meme chose pour sendMessage
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
+
+  //auto-scroll vers le bas si un nouveau message arrive
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; //scrollHeight = tout en bas
+    }
+  }, [chatMessages]);
 
   //callbacks stables pour le player
   const onPlayPauseCallback = useCallback((willPlay: boolean, timestamp: number) => {
@@ -115,10 +148,21 @@ export default function Room() {
 
   //gestion de l'envoi de message dans le chat
   const handleChatSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
-    setChatMessages([...chatMessages, { text: chatInput, author: 'Moi' }]);
-    setChatInput('');
+    e.preventDefault(); //refresh pas la page entière
+    if (!chatInput.trim()) {
+      console.warn('Message vide');
+      return;
+    }
+    const newMessage: ChatMessage = { //cree un message localement que l'utilisateur a mis
+      author: userPseudo,
+      text: chatInput,
+      timestamp: new Date(),
+    };
+    setChatMessages((prev) => [...prev, newMessage]);   //et l'ajoute directement localement dans la liste
+    if (sendMessageRef.current) { //envoi dans le socket le message au autres utilisateurs
+      sendMessageRef.current(chatInput);
+    }
+    setChatInput(''); //reset input
   };
 
   //ui d'état de connexion (uniquement si roomCode existe)
@@ -255,12 +299,38 @@ export default function Room() {
               <section className="bg-gray-800 rounded-lg p-4 flex flex-col max-h-[40vh] overflow-hidden">
                 <h2 className="text-lg font-semibold mb-3">Chat</h2>
                 {/* messages */}
-                <div className="flex-1 overflow-y-auto mb-2 space-y-2 bg-gray-900 p-3 rounded">
-                  {chatMessages.map((msg, index) => (
-                    <p key={index} className="bg-blue-600 rounded px-2 py-1 max-w-xs">
-                      {msg.author} : {msg.text}
+                <div 
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto mb-2 space-y-2 bg-gray-900 p-3 rounded"
+                >
+                  {chatMessages.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">
+                      Aucun message pour le moment
                     </p>
-                  ))}
+                  ) : (
+                    chatMessages.map((msg, index) => {
+                      const isOwnMessage = msg.author === userPseudo;
+                      return (
+                        <div
+                          key={index}                                                           //justify-end = droite = ownmessage
+                          className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}  //justify-start = gauche = autre utilisateur du salon
+                        >
+                          <div
+                            className={`max-w-xs px-3 py-2 rounded-lg ${
+                              isOwnMessage
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-700 text-gray-200'
+                            }`}
+                          >
+                            <p className="text-xs font-semibold mb-1">
+                              {isOwnMessage ? 'Vous' : msg.author} {msg.timestamp.getHours()}:{msg.timestamp.getMinutes()}
+                            </p>
+                            <p className="text-sm wrap-break-words">{msg.text}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
                 {/* envoi de message */}
                 <form onSubmit={handleChatSubmit} className="flex space-x-2">
