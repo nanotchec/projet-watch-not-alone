@@ -25,7 +25,7 @@ export default function Room() {
   const state = location.state as LocationState;
 
   const [roomName] = useState(state?.salonName || 'undefined salon')
-  const [userPseudo] = useState(state?.userPseudo || 'undefined username');
+  const [userPseudo] = useState(state?.userPseudo || '');
   const [codePartage] = useState(code || state?.codePartage || '');
   const [blockClicks] = useState(true); //bloque les click sur le vidéo container
 
@@ -44,7 +44,7 @@ export default function Room() {
       console.error('Code de salon introuvable, redirection vers creation de salon');
       navigate('/creation');
     }
-    if (userPseudo === 'undefiend username'){ //meme chose s'il n'a pas de pseudo non defini
+    if (userPseudo == ''){ //meme chose s'il n'a pas de pseudo non defini
       console.error('Pseudo non identifiable, redirection vers creation de salon');
       navigate('/creation');
     }
