@@ -41,9 +41,16 @@ export const setupSalonSockets = (io: Server) => {
             console.log(`User ${pseudo} joined room ${roomName}`);
 
             // 3. Envoyer l'état actuel (SYNC à l'arrivée)
+            let currentTimestamp = salon.horodatage_sec;
+            if (salon.etat_lecture === "PLAY") {
+                const now = new Date();
+                const elapsedSeconds = (now.getTime() - salon.maj_etat_le.getTime()) / 1000;
+                currentTimestamp += elapsedSeconds;
+            }
+
             socket.emit("sync_state", {
                 etat: salon.etat_lecture,
-                timestamp: salon.horodatage_sec,
+                timestamp: currentTimestamp,
                 videoId: salon.video_id,
                 fournisseur: salon.fournisseur,
             });

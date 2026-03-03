@@ -32,6 +32,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
   const playlistRef = useRef<VideoItem[]>([]);
   const currentVideoIndexRef = useRef(0);
   const isApplyingSyncRef = useRef(false);
+  const pendingSyncRef = useRef<{ etat: 'PLAY' | 'PAUSE'; timestamp: number; videoId?: string } | null>(null);
 
   //états du lecteur
   const [isReady, setIsReady] = useState(false);
@@ -68,7 +69,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
   useEffect(() => {
     const initPlayer = () => {
       if (!containerRef.current || !window.YT || !window.YT.Player) return;
-      
+
       playerRef.current = new window.YT.Player(containerRef.current, {
         height: '100%',
         width: '100%',
@@ -77,7 +78,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
           autoplay: 1,
           controls: 0,
           modestbranding: 1,
-          disabkekb : 1,
+          disabkekb: 1,
           rel: 0,
         },
         events: {
@@ -114,7 +115,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
   //mise à jour de la barre de progression toutes les 500ms
   useEffect(() => {
     if (!isReady || !playerRef.current) return;
-    
+
     const interval = setInterval(() => {
       if (playerRef.current && playerRef.current.getPlayerState() === window.YT.PlayerState.PLAYING) {
         const time = playerRef.current.getCurrentTime();
@@ -123,7 +124,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
         setDuration(dur);
       }
     }, 500);
-    
+
     return () => clearInterval(interval);
   }, [isReady]);
 
@@ -189,7 +190,7 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
     if (!playerRef.current) return;
     const iframe = playerRef.current.getIframe?.();
     if (!iframe) return;
-    
+
     if (!document.fullscreenElement) {
       if (iframe.requestFullscreen) iframe.requestFullscreen();
     } else {
@@ -224,20 +225,20 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
       alert('Cette vidéo est déjà dans ajoutée.');
       return;
     }
-    
+
     setPlaylist((prev) => {
       //numéro de la vidéo dans la playlist
       const videoNumber = prev.length + 1;
       const newVideo: VideoItem = { id: videoID, title: `Vidéo ${videoNumber}: ${videoID}` };
       const updated = [...prev, newVideo];
-      
+
       //charger la première vidéo automatiquement
       if (prev.length === 0 && isReady && playerRef.current) {
         setTimeout(() => {
           playerRef.current.loadVideoById(videoID);
         }, 100);
       }
-      
+
       return updated;
     });
   };
@@ -260,7 +261,8 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
   };
   const applySyncState = (etat: 'PLAY' | 'PAUSE', timestamp: number, videoId?: string) => {
     if (!playerRef.current || !isReady) {
-      console.warn('Player pas prêt');
+      console.warn('Player pas prêt, sauvegarde de la synchronisation pour plus tard');
+      pendingSyncRef.current = { etat, timestamp, videoId };
       return;
     }
     console.log('Application sync_state:', { etat, timestamp, videoId });
@@ -315,6 +317,16 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
       }, 500);
     }
   };
+
+  //appliquer le sync en attente quand le player devient prêt
+  useEffect(() => {
+    if (isReady && pendingSyncRef.current) {
+      const pending = pendingSyncRef.current;
+      pendingSyncRef.current = null;
+      console.log('Application du sync en attente...');
+      applySyncState(pending.etat, pending.timestamp, pending.videoId);
+    }
+  }, [isReady, applySyncState]);
 
   return {
     containerRef,
