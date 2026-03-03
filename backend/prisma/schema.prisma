@@ -21,10 +21,10 @@ model Salon {
   id_participation_hote Participation? @relation("SalonHote", fields: [id_participation_hoteID], references: [id_participation])
   participations Participation[] @relation("SalonParticipations")
   id_participation_hoteID Int @unique
-  etat_lecture String
-  fournisseur String
-  video_id String
-  horodatage_sec Int
+  
+  id_element_principalID Int? @unique
+  element_principal ElementPlaylist? @relation("SalonFluxPrincipal", fields: [id_element_principalID], references: [id_element_playlist])
+
   maj_etat_le DateTime @updatedAt
   cree_le DateTime @default(now())
   id_playlist Playlist?
@@ -87,8 +87,14 @@ model ElementPlaylist {
   fournisseur String
   video_id String
   position Int
+  
+  etat_lecture String @default("pause")
+  horodatage_sec Int @default(0)
+
   ajoutee_par Participation @relation(fields: [ajoutee_parID], references: [id_participation])
   ajoutee_parID Int
+  
+  salon_principal Salon? @relation("SalonFluxPrincipal")
 }
 
 model EtatSalonHistorique {
