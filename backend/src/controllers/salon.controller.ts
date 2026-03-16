@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { prisma } from "../prisma";
+import bcrypt from 'bcrypt';
 
 export const createSalon = async (req: Request, res: Response) => {
     try {
@@ -122,7 +123,7 @@ export const joinSalon = async (req: Request, res: Response) => {
                 data: {
                     pseudo,
                     email: `guest_${Date.now()}@example.com`, // Placeholder
-                    mot_de_passe_hache: "guest", // Placeholder
+                    mot_de_passe_hache: hashPassword("guest"), // Placeholder
                 },
             });
 
@@ -193,3 +194,44 @@ export const createMessage = async (req: Request, res: Response) => {
         res.status(500).json({ error: "Erreur lors de la prise en compte du message" });
     }
 };
+
+//  @TODO: need code review
+
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { pseudo, password } = req.body;
+        const user = await prisma.utilisateur.findFirst({
+            where: {
+                pseudo: pseudo,
+            },
+        })
+        const isCorrect = (await verifyPassword(password, user.mot_de_passe_hache)).valueOf()
+        if (isCorrect) {
+            const particip = await prisma.participation.findMany({
+                where: {
+                    id_UtilisateurID: user.id_utilisateur, 
+                },
+            })
+            res.status(200).json({particip})
+        }
+        else {
+            res.status(401).json({ error: "Mauvais username and/or password incorrect"});
+        }
+
+    }
+    catch (error) {
+        console.error("Erreur login :", error);
+        res.status(500).json({ error: "Erreur lors de la connection" });
+    }
+};
+
+async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 10; // Adjust as needed for security/performance
+  const hash = await bcrypt.hash(password, saltRounds);
+  return hash;
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  const isMatch = await bcrypt.compare(password, hash);
+  return isMatch;
+}
