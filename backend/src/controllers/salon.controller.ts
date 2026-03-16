@@ -17,7 +17,7 @@ export const createSalon = async (req: Request, res: Response) => {
                 data: {
                     pseudo,
                     email: `guest_${Date.now()}@example.com`, // Placeholder
-                    mot_de_passe_hache: "guest", // Placeholder
+                    mot_de_passe_hache: await hashPassword("guest"), // Placeholder
                 },
             });
 
@@ -37,12 +37,16 @@ export const createSalon = async (req: Request, res: Response) => {
                 data: {
                     nom,
                     code_partage: codePartage,
-                    etat_lecture: "PAUSE",
-                    fournisseur: "YOUTUBE",
-                    video_id: "",
-                    horodatage_sec: 0,
                     id_participation_hoteID: participation.id_participation,
                 },
+            });
+
+            // Creer la playlist par defaut du salon
+            const playlist = await tx.playlist.create({
+                data: {
+                    id_salonID: salon.id_salon,
+                    id_particiaptionID: participation.id_participation,
+                }
             });
 
             // lier participation au salon
@@ -123,7 +127,7 @@ export const joinSalon = async (req: Request, res: Response) => {
                 data: {
                     pseudo,
                     email: `guest_${Date.now()}@example.com`, // Placeholder
-                    mot_de_passe_hache: hashPassword("guest"), // Placeholder
+                    mot_de_passe_hache: await hashPassword("guest"), // Placeholder
                 },
             });
 
@@ -205,11 +209,17 @@ export const login = async (req: Request, res: Response) => {
                 pseudo: pseudo,
             },
         })
-        const isCorrect = (await verifyPassword(password, user.mot_de_passe_hache)).valueOf()
+
+        if (!user || !user.mot_de_passe_hache) {
+            res.status(401).json({ error: "Mauvais username and/or password incorrect" });
+            return;
+        }
+
+        const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);
         if (isCorrect) {
             const particip = await prisma.participation.findMany({
                 where: {
-                    id_UtilisateurID: user.id_utilisateur, 
+                    id_utilisateurID: user.id_utilisateur, 
                 },
             })
             res.status(200).json({particip})

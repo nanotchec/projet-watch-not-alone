@@ -20,10 +20,6 @@ async function main() {
         data: {
             nom: 'Test Salon',
             code_partage: 'TEST1234',
-            etat_lecture: 'PAUSE',
-            fournisseur: 'YOUTUBE',
-            video_id: 'dQw4w9WgXcQ',
-            horodatage_sec: 0,
             id_participation_hote: {
                 create: {
                     pseudo: 'HostUser',
