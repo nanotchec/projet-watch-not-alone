@@ -21,10 +21,12 @@ interface SyncCallbacks {
 
 interface UseYouTubePlayerOptions {
   syncCallbacks?: SyncCallbacks;
+  mainVideoId?: string;
+  mainFournisseur?: string;
 }
 
 export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
-  const { syncCallbacks } = options;
+  const { syncCallbacks, mainVideoId, mainFournisseur } = options;
 
   //refs pour le player youtube
   const playerRef = useRef<any>(null);
@@ -128,15 +130,17 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
     return () => clearInterval(interval);
   }, [isReady]);
 
-  //charger la première vidéo quand la playlist n'est plus vide
+  //charger la vidéo principale quand elle change
   useEffect(() => {
-    if (isReady && playlist.length > 0 && currentVideoIndex === 0 && playerRef.current) {
-      const videoData = playerRef.current.getVideoData?.();
-      if (!videoData || !videoData.video_id) {
-        loadVideo(0);
+    if (mainVideoId && isReady && playerRef.current) {
+      const currentVideoData = playerRef.current.getVideoData?.();
+      const currentLoadedVideoId = currentVideoData?.video_id;
+      if (currentLoadedVideoId !== mainVideoId) {
+        console.log('Loading main video:', mainVideoId);
+        playerRef.current.loadVideoById(mainVideoId);
       }
     }
-  }, [isReady, playlist.length, currentVideoIndex]);
+  }, [mainVideoId, isReady]);
 
 
   //gestion du plein écran

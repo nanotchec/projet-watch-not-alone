@@ -9,6 +9,7 @@ interface LocationState {   //variables qui ne peuvent pas etre "modifier" direc
   salonName?: string;
   userPseudo?: string;
   codePartage?: string;
+  isHost?: boolean;
 }
 
 interface ChatMessage {
@@ -28,6 +29,17 @@ export default function Room() {
   const [userPseudo] = useState(state?.userPseudo || '');
   const [codePartage] = useState(code || state?.codePartage || '');
   const [blockClicks] = useState(true); //bloque les click sur le vidéo container
+
+  // BUG FIX: état du rôle de l'utilisateur, initialisé depuis isHost du state de navigation
+  // Peut être mis à jour si le serveur envoie le rôle via sync_state
+  const [userRole, setUserRole] = useState<'HOST' | 'MEMBER'>(
+    state?.isHost ? 'HOST' : 'MEMBER'
+  );
+
+  //states for multi-stream
+  const [playlist, setPlaylist] = useState<any[]>([]);
+  const [mainVideoId, setMainVideoId] = useState<string>('');
+  const [mainFournisseur, setMainFournisseur] = useState<string>('YOUTUBE');
 
   //valeurs pour le chat et le salon
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -53,7 +65,7 @@ export default function Room() {
   //callbacks pour recevoir des messages
   const onChatMessageCallback = useCallback((data: { user: string; contenu: string; cree: Date }) => {
     console.log('Message reçu:', data);
-    
+
     const newMessage: ChatMessage = {
       author: data.user,
       text: data.contenu,
@@ -63,19 +75,46 @@ export default function Room() {
   }, []);
 
   //connexion websocket si roomcode existe
-  const { isConnected, error, sendUpdate, sendMessage } = useSocket({
+  const { isConnected, error, sendUpdate, sendMessage, addStreamToPlaylist, setMainStream } = useSocket({
     codePartage,
     pseudo: userPseudo,
     // Callback appelé quand le serveur demande une synchronisation de l'état de lecture
     // data contient: etat ('PLAY' ou 'PAUSE'), timestamp (position vidéo), videoId (ID de la vidéo)
     onSyncState: useCallback((data) => {
       console.log('Reçu sync_state:', data);
+
+      if (data.role) {
+        console.log('Rôle mis à jour depuis le serveur:', data.role);
+        setUserRole(data.role);
+      }
+
       // Applique l'état de synchronisation via la référence du player
       if (applySyncStateRef.current) {
         applySyncStateRef.current(data.etat, data.timestamp, data.videoId);
       }
+      // Mise à jour de la playlist complète si fournie (ex: à l'arrivée dans le salon)
+      if (data.playlist) {
+        setPlaylist(data.playlist);
+      }
+      // Mise à jour de la vidéo principale active
+      if (data.activeElementId) {
+        const activeElement = data.playlist?.find((el: any) => el.id_element_playlist === data.activeElementId);
+        if (activeElement) {
+          setMainVideoId(activeElement.video_id);
+          setMainFournisseur(activeElement.fournisseur);
+        }
+      }
     }, []),
     onChatMessage: onChatMessageCallback,
+    onStreamAdded: useCallback((element) => {
+      console.log('Stream added:', element);
+      setPlaylist(prev => [...prev, element]);
+    }, []),
+    onMainStreamChanged: useCallback((data) => {
+      console.log('Main stream changed:', data);
+      setMainVideoId(data.videoId);
+      setMainFournisseur(data.fournisseur);
+    }, []),
   });
 
   //stocker sendUpdate dans ref
@@ -97,31 +136,32 @@ export default function Room() {
 
   //callbacks stables pour le player
   const onPlayPauseCallback = useCallback((willPlay: boolean, timestamp: number) => {
+    if (userRole !== 'HOST') return; //check si c'est le HOST qui fait cette demande
     console.log('Play/Pause:', { willPlay, timestamp });
     if (sendUpdateRef.current) {
       sendUpdateRef.current(willPlay ? 'PLAY' : 'PAUSE', timestamp);
     }
-  }, []);
+  }, [userRole]);
 
   const onSeekCallback = useCallback((timestamp: number) => {
+    if (userRole !== 'HOST') return;
     console.log('Seek:', { timestamp });
     if (sendUpdateRef.current) {
       sendUpdateRef.current('PLAY', timestamp);
     }
-  }, []);
+  }, [userRole]);
 
   const onVideoChangeCallback = useCallback((videoId: string) => {
+    if (userRole !== 'HOST') return;
     console.log('Video change:', { videoId });
     if (sendUpdateRef.current) {
       sendUpdateRef.current('PAUSE', 0, videoId);
     }
-  }, []);
+  }, [userRole]);
 
   //gestion du lecteur YouTube
   const {
     containerRef,
-    playlist,
-    currentVideoIndex,
     isPlaying,
     volume,
     isFullscreen,
@@ -130,8 +170,6 @@ export default function Room() {
     seek,
     setVolumeLevel,
     toggleFullscreen,
-    loadVideo,
-    addVideo,
     applySyncState,
   } = useYouTubePlayer({
     syncCallbacks: {
@@ -139,6 +177,8 @@ export default function Room() {
       onSeek: onSeekCallback,
       onVideoChange: onVideoChangeCallback,
     },
+    mainVideoId,
+    mainFournisseur,
   });
 
   //stocker applySyncState dans ref
@@ -163,6 +203,39 @@ export default function Room() {
       sendMessageRef.current(chatInput);
     }
     setChatInput(''); //reset input
+  };
+
+  //gestion de l'ajout de vidéo (seulement pour HOST)
+  const handleAddVideo = useCallback((url: string) => {
+    if (userRole !== 'HOST') {
+      console.warn('Seul l\'hôte peut ajouter des vidéos');
+      return;
+    }
+    const videoID = extractVideoID(url);
+    if (!videoID) {
+      alert('Veuillez entrer une URL YouTube valide.');
+      return;
+    }
+    // Vérifier les doublons
+    if (playlist.some(v => v.video_id === videoID)) {
+      alert('Cette vidéo est déjà dans la playlist.');
+      return;
+    }
+    addStreamToPlaylist('YOUTUBE', videoID);
+  }, [userRole, playlist, addStreamToPlaylist]);
+
+  //extraction d'ID YouTube
+  const extractVideoID = (url: string): string | null => {
+    try {
+      const regex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|embed|shorts)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+      const match = url.match(regex);
+      if (match && match[1]) return match[1];
+      if (/^[a-zA-Z0-9_-]{11}$/.test(url)) return url;
+      return null;
+    } catch (err) {
+      console.error('Erreur lors de l\'extraction de l\'ID vidéo', err);
+      return null;
+    }
   };
 
   //ui d'état de connexion (uniquement si roomCode existe)
@@ -190,9 +263,23 @@ export default function Room() {
     );
   };
 
+  // Badge indiquant le rôle de l'utilisateur
+  const RoleBadge = () => (
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+        userRole === 'HOST'
+          ? 'bg-yellow-500 text-gray-900'
+          : 'bg-gray-600 text-gray-200'
+      }`}
+    >
+      {userRole === 'HOST' ? 'Hote' : 'Membre'}
+    </span>
+  );
+
   return (
     <div className="bg-gray-900 text-white flex flex-col min-h-screen">
-      <Header showSearch onAddVideo={addVideo} />
+      {/* Header avec bouton ajout vidéo uniquement visible pour le HOST */}
+      <Header showSearch onAddVideo={userRole === 'HOST' ? handleAddVideo : undefined} />
       <main className="flex flex-1 overflow-hidden">
         <Sidebar />
         <section className="flex flex-col flex-1 bg-gray-900 p-6 overflow-hidden">
@@ -203,14 +290,17 @@ export default function Room() {
             <h1 className="text-2xl font-anton font-bold">
               Salon: {roomName} ({codePartage})
             </h1>
-            <p className="text-gray-400">Connecté en tant que: {userPseudo}</p>
+            <div className="flex items-center gap-3">
+              <p className="text-gray-400">Connecté en tant que: {userPseudo}</p>
+              <RoleBadge />
+            </div>
           </div>
 
           <div className="flex flex-1 space-x-6 overflow-hidden">
             {/* lecteur vidéo youtube */}
             <div className="flex flex-col flex-1 bg-black rounded-lg shadow-lg overflow-hidden">
               {/* conteneur du player youtube */}
-              <div className="relative w-full flex-grow pt-[56.25%] bg-black">
+              <div className="relative w-full grow pt-[56.25%] bg-black">
                 <div ref={containerRef} className="absolute inset-0"></div>
                 {/* overlay transparent qui bloque les interactions */}
                 {blockClicks && (
@@ -220,10 +310,17 @@ export default function Room() {
 
               {/* controles du lecteur youtube */}
               <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-t border-gray-700 text-white select-none space-x-4">
+                {/* bouton play/pause desactiver pour les membres */}
                 <button
                   onClick={playPause}
+                  disabled={userRole !== 'HOST'}
                   aria-label={isPlaying ? 'Mettre la vidéo en pause' : 'Lire la vidéo'}
-                  className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 flex items-center justify-center"
+                  title={userRole !== 'HOST' ? 'Seul l\'hôte peut contrôler la lecture' : undefined}
+                  className={`px-4 py-2 rounded flex items-center justify-center transition-colors ${
+                    userRole === 'HOST'
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-gray-600 cursor-not-allowed opacity-50'
+                  }`}
                 >
                   {isPlaying ? (
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-6 h-6">
@@ -236,31 +333,36 @@ export default function Room() {
                   )}
                 </button>
 
-                {/* barre de progression */}
+                {/* barre de progression (desactiver pour les membres) */}
                 <input
                   type="range"
                   min="0"
                   max="100"
                   value={seekPercentage}
                   onChange={(e) => seek(Number(e.target.value))}
-                  className="flex-1 cursor-pointer"
+                  disabled={userRole !== 'HOST'}
+                  title={userRole !== 'HOST' ? 'Seul l\'hôte peut modifier la progression' : undefined}
+                  className={`flex-1 accent-blue-500 ${
+                    userRole === 'HOST' ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                  }`}
                 />
 
-                {/* barre de volume */}
+                {/* barre de volume accessible a tous (local seulement, pas de sync) */}
                 <input
                   type="range"
                   min="0"
                   max="100"
                   value={volume}
                   onChange={(e) => setVolumeLevel(Number(e.target.value))}
-                  className="w-24 cursor-pointer"
+                  title="Volume (local)"
+                  className="w-24 cursor-pointer accent-blue-500"
                 />
 
-                {/* bouton pour le plein écran */}
+                {/* bouton pour le plein écran accessible a tous */}
                 <button
                   onClick={toggleFullscreen}
                   aria-label={isFullscreen ? 'Quitter le plein écran' : 'Activer le plein écran'}
-                  className="px-4 py-2 bg-blue-600 rounded hover:bg-blue-700 flex items-center justify-center"
+                  className="px-4 py-2 rounded flex items-center justify-center bg-gray-700 hover:bg-gray-600 transition-colors"
                 >
                   {isFullscreen ? (
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-6 h-6">
@@ -273,26 +375,58 @@ export default function Room() {
                   )}
                 </button>
               </div>
+
+              {/* message pour les membres */}
+              {userRole !== 'HOST' && (
+                <div className="bg-gray-800 border-t border-gray-700 px-4 py-2 text-center text-xs text-gray-400">
+                  Vous êtes en mode spectateur — seul l'hôte peut contrôler la lecture
+                </div>
+              )}
             </div>
 
             {/* sidebar playlist et chat */}
             <aside className="w-80 flex flex-col space-y-6 overflow-hidden">
               {/* liste vidéos dans playlist*/}
               <section className="bg-gray-800 rounded-lg p-4 flex flex-col max-h-[50vh] overflow-y-auto">
-                <h2 className="text-lg font-semibold mb-3">Playlist</h2>
+                <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">Playlist
+                  {userRole === 'HOST' && (
+                    <span className="text-xs text-yellow-400 font-normal">(cliquez pour changer)</span>
+                  )}
+                </h2>
                 <ul className="space-y-2">
-                  {playlist.map((video, index) => (
+                  {/* c'est le HOST peut faire des manipulation que les members ne peuvent rien faire*/}
+                  {playlist.map((video) => (
                     <li
-                      key={index}
-                      onClick={() => loadVideo(index)}
-                      className={`cursor-pointer px-2 py-1 rounded hover:bg-blue-700 ${
-                        index === currentVideoIndex ? 'bg-blue-600 text-white' : ''
+                      key={video.id_element_playlist}
+                      onClick={() => {
+                        if (userRole === 'HOST') {
+                          setMainStream(video.id_element_playlist);
+                        }
+                      }}
+                      title={userRole !== 'HOST' ? 'Seul l\'hôte peut changer la vidéo' : `Lire: ${video.video_id}`}
+                      className={`px-3 py-2 rounded text-sm flex items-center justify-between gap-2 ${
+                        mainVideoId === video.video_id
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-200'
+                      } ${
+                        userRole === 'HOST'
+                          ? 'cursor-pointer hover:bg-blue-700'
+                          : 'cursor-default'
                       }`}
                     >
-                      {video.title}
+                      <span className="truncate">
+                        {video.fournisseur}: {video.video_id}
+                      </span>
                     </li>
                   ))}
                 </ul>
+                {playlist.length === 0 && (
+                  <p className="text-gray-400 text-center py-4 text-sm">
+                    {userRole === 'HOST'
+                      ? 'Ajoutez une vidéo via la barre de recherche'
+                      : 'Aucune vidéo dans la playlist'}
+                  </p>
+                )}
               </section>
 
               {/* chat */}
@@ -341,7 +475,7 @@ export default function Room() {
                     onChange={(e) => setChatInput(e.target.value)}
                     className="flex-1 min-w-0 rounded px-3 py-2 bg-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-blue-900"
                   />
-                  <button type="submit" className="bg-blue-900 px-4 py-2 rounded hover:bg-blue-800">
+                  <button type="submit" className="bg-blue-900 px-4 py-2 rounded hover:bg-blue-800 transition-colors">
                     Envoyer
                   </button>
                 </form>
@@ -349,7 +483,7 @@ export default function Room() {
             </aside>
           </div>
 
-          <footer className="bg-gray-800 border-t border-gray-700 p-4 flex items-center space-x-4 overflow-x-auto">
+          <footer className="bg-gray-800 border-t border-gray-700 p-4 flex items-center space-x-4 overflow-x-auto mt-4">
             <h3 className="font-semibold">Participants :</h3>
             <div className="flex space-x-3">
               {/* A faire: ajouter les participants ici */}

@@ -68,6 +68,7 @@ const RoomApp: React.FC = () => {
           salonName: data.salon.nom,
           userPseudo: data.user.pseudo,
           codePartage: data.salon.code_partage,
+          isHost: mode === 'create',
         },
       });
     }catch(error){
