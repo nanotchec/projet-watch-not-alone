@@ -59,7 +59,7 @@ export const setupSalonSockets = (io: Server) => {
             // 2. Rejoindre la room Socket.IO
             const roomName = `salon_${codePartage}`;
             socket.join(roomName);
-            console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${io.sockets.adapter.rooms[`salon_${codePartage}`].length}`);
+            console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : kamoulox`);
 
             // 3. Envoyer l'état actuel (SYNC à l'arrivée)
             let currentTimestamp = 0;
