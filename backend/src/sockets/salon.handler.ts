@@ -40,7 +40,6 @@ export const setupSalonSockets = (io: Server) => {
         // Rejoindre un salon
         socket.on("join_salon", async ({ codePartage, pseudo }: JoinPayload) => {
             // 1. Récupérer le salon et sa playlist active
-            participe ++
             const salon = await prisma.salon.findFirst({
                 where: { code_partage: codePartage },
                 include: {
@@ -61,7 +60,8 @@ export const setupSalonSockets = (io: Server) => {
             // 2. Rejoindre la room Socket.IO
             const roomName = `salon_${codePartage}`;
             socket.join(roomName);
-            console.log(`User ${pseudo} joined room ${roomName}`);
+            participe ++;
+            console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${participe}`);
 
             // 3. Envoyer l'état actuel (SYNC à l'arrivée)
             let currentTimestamp = 0;
