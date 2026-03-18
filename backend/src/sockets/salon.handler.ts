@@ -285,12 +285,11 @@ export const setupSalonSockets = (io: Server) => {
                     where: { id_element_playlist: elementPlaylistId }
                 });
 
-                io.to(roomName).emit("main_stream_changed", {
+                io.to(roomName).emit("main_stream_changed",
                     elementPlaylistId,
-                    videoId: element?.video_id,
-                    fournisseur: element?.fournisseur
-                });
-
+                    element?.video_id,
+                    element?.fournisseur
+                );
             } catch (err) {
                 console.error("Erreur set_main_stream", err);
             }
