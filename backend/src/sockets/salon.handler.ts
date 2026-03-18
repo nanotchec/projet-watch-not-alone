@@ -35,8 +35,8 @@ interface SetMainStreamPayload {
 }
 
 export const setupSalonSockets = (io: Server) => {
+    var participe = 0;
     io.on("connection", (socket: Socket) => {
-        var participe = 0;
         // Rejoindre un salon
         socket.on("join_salon", async ({ codePartage, pseudo }: JoinPayload) => {
             // 1. Récupérer le salon et sa playlist active
