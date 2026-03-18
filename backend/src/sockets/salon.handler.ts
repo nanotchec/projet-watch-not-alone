@@ -199,7 +199,7 @@ export const setupSalonSockets = (io: Server) => {
             var roomName = Object.keys(socket.rooms);
             // the rooms array contains at least the socket ID
             var num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
-            socket.to(roomName).emit("user_count",{num_participe});
+            socket.to(roomName[0]).emit("user_count",{num_participe});
         });
 
         socket.on("disconnect", () => {
