@@ -60,7 +60,7 @@ export const setupSalonSockets = (io: Server) => {
             // 2. Rejoindre la room Socket.IO
             const roomName = `salon_${codePartage}`;
             socket.join(roomName);
-            participe ++;
+            participe = participe+1;
             console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${participe}`);
 
             // 3. Envoyer l'état actuel (SYNC à l'arrivée)
