@@ -59,7 +59,7 @@ export const useSocket = ({
   useEffect(() => { onMainStreamChangedRef.current = onMainStreamChanged; }, [onMainStreamChanged]);
 
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_BACKEND_URL || 'localhost:3000';
+    const socketUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
     const socket = io(socketUrl, {
       transports: ['websocket'],
       reconnection: true,
@@ -108,9 +108,9 @@ export const useSocket = ({
     });
 
     socket.on('main_stream_changed', (elementPlaylistId: number, videoId: string, fournisseur: string) => {
-      console.log('main_stream_changed reçu:', elementPlaylistId,videoId,fournisseur);
+      console.log('main_stream_changed reçu:', elementPlaylistId, videoId, fournisseur);
       if (onMainStreamChangedRef.current) {
-        onMainStreamChangedRef.current(elementPlaylistId,videoId,fournisseur);
+        onMainStreamChangedRef.current(elementPlaylistId, videoId, fournisseur);
       }
     });
 
