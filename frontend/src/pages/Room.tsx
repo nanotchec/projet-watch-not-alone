@@ -5,6 +5,15 @@ import Sidebar from '../components/Sidebar';
 import { useYouTubePlayer } from '../services/useYouTubePlayer';
 import { useSocket } from '../hooks/useSocket';
 
+interface StreamElement {
+  id_element_playlist: number;
+  fournisseur: string;
+  video_id: string;
+  position: number;
+  etat_lecture: string;
+  horodatage_sec: number;
+}
+
 interface LocationState {   //variables qui ne peuvent pas etre "modifier" directement dans l'url
   salonName?: string;
   userPseudo?: string;
@@ -106,14 +115,14 @@ export default function Room() {
       }
     }, []),
     onChatMessage: onChatMessageCallback,
-    onStreamAdded: useCallback((element) => {
+    onStreamAdded: useCallback((element : StreamElement) => {
       console.log('Stream added:', element);
       setPlaylist(prev => [...prev, element]);
     }, []),
-    onMainStreamChanged: useCallback((data) => {
-      console.log('Main stream changed:', data);
-      setMainVideoId(data.videoId);
-      setMainFournisseur(data.fournisseur);
+    onMainStreamChanged: useCallback((elementPlaylistId: number, videoId: string, fournisseur: string) => {
+      console.log('Main stream changed:', elementPlaylistId);
+      setMainVideoId(videoId);
+      setMainFournisseur(fournisseur);
     }, []),
   });
 

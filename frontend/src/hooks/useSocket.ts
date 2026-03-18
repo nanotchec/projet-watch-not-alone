@@ -33,7 +33,7 @@ interface UseSocketOptions {
   onSyncState: (data: SyncState) => void; //utlisée pour faire un callback si un sync state est reçu
   onChatMessage?: (message: ChatMessage) => void; //de même pour le chat
   onStreamAdded?: (element: StreamElement) => void;
-  onMainStreamChanged?: (data: { elementPlaylistId: number; videoId: string; fournisseur: string }) => void;
+  onMainStreamChanged?: (elementPlaylistId: number, videoId: string, fournisseur: string) => void;
 }
 
 export const useSocket = ({
@@ -107,10 +107,10 @@ export const useSocket = ({
       }
     });
 
-    socket.on('main_stream_changed', (data: { elementPlaylistId: number; videoId: string; fournisseur: string }) => {
-      console.log('main_stream_changed reçu:', data);
+    socket.on('main_stream_changed', (elementPlaylistId: number, videoId: string, fournisseur: string) => {
+      console.log('main_stream_changed reçu:', elementPlaylistId,videoId,fournisseur);
       if (onMainStreamChangedRef.current) {
-        onMainStreamChangedRef.current(data);
+        onMainStreamChangedRef.current(elementPlaylistId,videoId,fournisseur);
       }
     });
 

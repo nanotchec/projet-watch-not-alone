@@ -26,7 +26,7 @@ interface UseYouTubePlayerOptions {
 }
 
 export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
-  const { syncCallbacks, mainVideoId, mainFournisseur } = options;
+  const { syncCallbacks, mainVideoId} = options;
 
   //refs pour le player youtube
   const playerRef = useRef<any>(null);
