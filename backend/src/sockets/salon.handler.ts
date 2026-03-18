@@ -37,7 +37,6 @@ interface SetMainStreamPayload {
 export const setupSalonSockets = (io: Server) => {
     io.on("connection", (socket: Socket) => {
         // Rejoindre un salon
-        var particip = 0;
         socket.on("join_salon", async ({ codePartage, pseudo }: JoinPayload) => {
             // 1. Récupérer le salon et sa playlist active
             const salon = await prisma.salon.findFirst({
@@ -60,8 +59,7 @@ export const setupSalonSockets = (io: Server) => {
             // 2. Rejoindre la room Socket.IO
             const roomName = `salon_${codePartage}`;
             socket.join(roomName);
-            particip++;
-            console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${particip}`);
+            console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${io.sockets.adapter.rooms[`salon_${codePartage}`].length}`);
 
             // 3. Envoyer l'état actuel (SYNC à l'arrivée)
             let currentTimestamp = 0;
@@ -197,11 +195,6 @@ export const setupSalonSockets = (io: Server) => {
 
         socket.on("disconnect", () => {
             // Gérer déconnexion si besoin
-            particip --;
-            console.log("il reste "+particip+" participant");
-            if (particip == 0) {
-                
-            }
         });
 
         // ==========================================
