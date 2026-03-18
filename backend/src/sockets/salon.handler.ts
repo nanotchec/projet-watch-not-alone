@@ -196,10 +196,10 @@ export const setupSalonSockets = (io: Server) => {
         });
 
         socket.on('disconnecting', () => {
-            var roomName = Object.keys(socket.rooms);
+            const roomName = socket.rooms;
             // the rooms array contains at least the socket ID
             var num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
-            socket.to(roomName[0]).emit("user_count",{num_participe});
+            socket.to(roomName).emit("user_count",{num_participe});
         });
 
         socket.on("disconnect", () => {
