@@ -93,6 +93,8 @@ export const setupSalonSockets = (io: Server) => {
 
             // 4. Notifier les autres
             socket.to(roomName).emit("user_joined", { pseudo });
+            const num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
+            socket.to(roomName).emit("user_count",{num_participe});
         });
 
         //MAJ chat
@@ -191,6 +193,13 @@ export const setupSalonSockets = (io: Server) => {
             } catch (e) {
                 console.error("Erreur update state", e);
             }
+        });
+
+        socket.on('disconnecting', () => {
+            const roomName = Object.keys(socket.rooms);
+            // the rooms array contains at least the socket ID
+            const num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
+            socket.to(roomName).emit("user_count",{num_participe});
         });
 
         socket.on("disconnect", () => {
