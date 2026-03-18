@@ -36,6 +36,7 @@ interface SetMainStreamPayload {
 
 export const setupSalonSockets = (io: Server) => {
     io.on("connection", (socket: Socket) => {
+        var roomName =``;
         // Rejoindre un salon
         socket.on("join_salon", async ({ codePartage, pseudo }: JoinPayload) => {
             // 1. Récupérer le salon et sa playlist active
@@ -57,7 +58,7 @@ export const setupSalonSockets = (io: Server) => {
             }
 
             // 2. Rejoindre la room Socket.IO
-            const roomName = `salon_${codePartage}`;
+            roomName = `salon_${codePartage}`;
             socket.join(roomName);
             console.log(`User ${pseudo} joined room ${roomName}, nombre de participant actif : ${io.of("/").adapter.rooms.get(roomName)?.size || 0}`);
 
@@ -196,7 +197,6 @@ export const setupSalonSockets = (io: Server) => {
         });
 
         socket.on('disconnecting', () => {
-            const roomName = socket.rooms;
             // the rooms array contains at least the socket ID
             var num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
             socket.to(roomName).emit("user_count",{num_participe});
