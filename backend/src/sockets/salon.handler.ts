@@ -34,9 +34,37 @@ interface SetMainStreamPayload {
     elementPlaylistId: number;
 }
 
+interface ChangeModePayload {
+    codePartage: string;
+    pseudo: string;
+    mode: "STANDARD" | "SPORTS_ANALYSIS";
+}
+
+interface AddAnnotationPayload {
+    codePartage: string;
+    pseudo: string;
+    id_angle: number | null;
+    timestamp_video: number;
+    duree_affichage?: number;
+    type: string;
+    payload: any;
+}
+
+interface MainStreamChangedPayload {
+    elementPlaylistId: number;
+    videoId?: string;
+    fournisseur?: string;
+    angles: {
+        id_angle: number;
+        nom: string;
+        fournisseur: string;
+        video_id: string;
+    }[];
+}
+
 export const setupSalonSockets = (io: Server) => {
     io.on("connection", (socket: Socket) => {
-        var roomName =``;
+        let roomName = "";
         // Rejoindre un salon
         socket.on("join_salon", async ({ codePartage, pseudo }: JoinPayload) => {
             // 1. Récupérer le salon et sa playlist active
@@ -48,7 +76,11 @@ export const setupSalonSockets = (io: Server) => {
                             id_element_playlist: true
                         }
                     },
-                    element_principal: true,
+                    element_principal: {
+                        include: {
+                            angles: true
+                        }
+                    },
                 }
             });
 
@@ -90,12 +122,14 @@ export const setupSalonSockets = (io: Server) => {
                 // Nouveau pour le multiflux
                 playlist: salon.id_playlist?.id_element_playlist || [],
                 activeElementId: salon.id_element_principalID,
+                mode: salon.mode,
+                angles: salon.element_principal?.angles || [],
             });
 
             // 4. Notifier les autres
             socket.to(roomName).emit("user_joined", { pseudo });
             const num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
-            socket.to(roomName).emit("user_count",{num_participe});
+            socket.to(roomName).emit("user_count", { num_participe });
         });
 
         //MAJ chat
@@ -196,10 +230,10 @@ export const setupSalonSockets = (io: Server) => {
             }
         });
 
-        socket.on('disconnecting', () => {
+        socket.on("disconnecting", () => {
             // the rooms array contains at least the socket ID
-            var num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
-            socket.to(roomName).emit("user_count",{num_participe});
+            const num_participe = io.of("/").adapter.rooms.get(roomName)?.size || 0;
+            socket.to(roomName).emit("user_count", { num_participe });
         });
 
         socket.on("disconnect", () => {
@@ -282,16 +316,114 @@ export const setupSalonSockets = (io: Server) => {
 
                 // Optionnel : récupérer le flux pour broadcast play
                 const element = await prisma.elementPlaylist.findUnique({
-                    where: { id_element_playlist: elementPlaylistId }
+                    where: { id_element_playlist: elementPlaylistId },
+                    include: { angles: true }
                 });
 
-                io.to(roomName).emit("main_stream_changed",
+                const mainStreamPayload: MainStreamChangedPayload = {
                     elementPlaylistId,
-                    element?.video_id,
-                    element?.fournisseur
-                );
+                    videoId: element?.video_id,
+                    fournisseur: element?.fournisseur,
+                    angles: element?.angles || []
+                };
+
+                io.to(roomName).emit("main_stream_changed", mainStreamPayload);
             } catch (err) {
                 console.error("Erreur set_main_stream", err);
+            }
+        });
+
+        // 3. Basculer le mode du salon (réservé au HOST)
+        socket.on("change_room_mode", async (payload: ChangeModePayload) => {
+            const { codePartage, pseudo, mode } = payload;
+            const roomName = `salon_${codePartage}`;
+
+            try {
+                const salon = await prisma.salon.findFirst({
+                    where: { code_partage: codePartage },
+                    include: {
+                        element_principal: {
+                            include: { angles: true }
+                        }
+                    }
+                });
+
+                if (!salon) return;
+
+                const participe = await prisma.participation.findFirst({
+                    where: { id_salonID: salon.id_salon, pseudo }
+                });
+
+                if (!participe || participe.role !== "HOST") {
+                    socket.emit("error", "Seul l'hôte peut modifier le mode du salon.");
+                    return;
+                }
+
+                await prisma.salon.update({
+                    where: { id_salon: salon.id_salon },
+                    data: { mode }
+                });
+
+                io.to(roomName).emit("room_mode_changed", {
+                    mode,
+                    angles: salon.element_principal?.angles || []
+                });
+            } catch (err) {
+                console.error("Erreur change_room_mode", err);
+            }
+        });
+
+        // 4. Ajouter une annotation
+        socket.on("add_annotation", async (payload: AddAnnotationPayload) => {
+            const { codePartage, pseudo, id_angle, timestamp_video, duree_affichage, type, payload: annotationPayload } = payload;
+            const roomName = `salon_${codePartage}`;
+
+            try {
+                const salon = await prisma.salon.findFirst({
+                    where: { code_partage: codePartage }
+                });
+
+                if (!salon) return;
+
+                const participe = await prisma.participation.findFirst({
+                    where: { id_salonID: salon.id_salon, pseudo }
+                });
+
+                if (!participe) return;
+
+                if (id_angle !== null) {
+                    const angle = await prisma.elementPlaylistAngle.findFirst({
+                        where: {
+                            id_angle,
+                            element_playlist: {
+                                id_playlist: {
+                                    id_salonID: salon.id_salon
+                                }
+                            }
+                        }
+                    });
+
+                    if (!angle) {
+                        socket.emit("error", "Angle invalide pour ce salon.");
+                        return;
+                    }
+                }
+
+                const newAnnotation = await prisma.annotation.create({
+                    data: {
+                        id_salon: salon.id_salon,
+                        id_participation: participe.id_participation,
+                        id_angle,
+                        timestamp_video: timestamp_video,
+                        duree_affichage: duree_affichage ?? null,
+                        type: type,
+                        payload: annotationPayload
+                    }
+                });
+
+                io.to(roomName).emit("new_annotation", newAnnotation);
+            } catch (err) {
+                console.error("Erreur add_annotation", err);
             }
         });
     });

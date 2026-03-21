@@ -82,3 +82,67 @@ socket.emit("update_state", {
 
 Si un utilisateur qui n'est pas "HOST" envoie cet événement, le backend l'ignorera et renverra une erreur socket.
 Cet événement modifie désormais l'état spécifiquement de l'élément de playlist actif. La réception par les autres clients via `sync_state` reste inchangée !
+
+## 5. Mode Analyse Sportive / Multi-Angles (NOUVEAU)
+
+Ce mode permet d'afficher plusieurs angles d'une même vidéo ainsi que d'y ajouter des annotations synchronisées avec le temps de la vidéo.
+
+### L'objet de statut s'enrichit
+Dans le `sync_state`, vous recevrez désormais le `mode` du salon (`STANDARD` ou `SPORTS_ANALYSIS`).
+Si le mode est `SPORTS_ANALYSIS`, l'élément actif peut potentiellement contenir une liste d'`angles`.
+```json
+{
+  "etat": "PLAY",
+  "timestamp": 12.4,
+  "mode": "SPORTS_ANALYSIS",
+  "activeElementId": 42,
+  "angles": [
+    { "id_angle": 1, "nom": "Cam 1", "fournisseur": "YOUTUBE", "video_id": "vid1" },
+    { "id_angle": 2, "nom": "Cam 2", "fournisseur": "MP4", "video_id": "vid2" }
+  ]
+}
+```
+
+### Changer le mode du salon : `change_room_mode` 👑 (Réservé au HOST)
+Permet de basculer l'ensemble du salon dans un mode d'analyse multi-caméras.
+**Ce que le HOST envoie (`emit`) :**
+```json
+socket.emit("change_room_mode", {
+  "codePartage": "ABCDEF",
+  "pseudo": "PseudoDuHost",
+  "mode": "SPORTS_ANALYSIS" // ou "STANDARD"
+});
+```
+
+**Ce que tout le monde reçoit (`on`) :**
+L'événement `room_mode_changed` signalera ce changement, avec la configuration actualisée.
+```json
+socket.on("room_mode_changed", ({ mode, angles }) => {
+  // mode = "SPORTS_ANALYSIS"
+});
+```
+
+### Ajouter une Annotation : `add_annotation`
+Permet de dessiner, d'écrire ou de pointer un élément sur un angle précis, synchronisé à une seconde précise du flux de lecture.
+**Ce que vous envoyez (`emit`) :**
+```json
+socket.emit("add_annotation", {
+  "codePartage": "ABCDEF",
+  "pseudo": "MonPseudo",
+  "id_angle": 1, // Optionnel : Identifiant de la caméra concernée (null = visible sur toutes les cams)
+  "timestamp_video": 45.2, // Temps EXACT de la vidéo au moment du tracé (obligatoire)
+  "duree_affichage": 2.5, // Optionnel : Durée de disparition en secondes
+  "type": "DESSIN", // "DESSIN", "TEXTE", "FLECHE"
+  "payload": { "x": 100, "y": 200, "color": "red" } // Contenu / SVG géré par le front
+});
+```
+
+**Ce que tout le monde reçoit (`on`) :**
+Le serveur sauvegarde et rebroadcast immédiatement l'événement sous le nom `new_annotation`.
+```json
+socket.on("new_annotation", (annotationData) => {
+  // Affichez / Mettez en attente l'annotation selon le timestamp
+  // et le `id_angle` que regarde l'utilisateur.
+  // L'objet contiendra un "id_annotation" unique (ID de BDD)
+});
+```
