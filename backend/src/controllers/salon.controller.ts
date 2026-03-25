@@ -13,13 +13,24 @@ export const createSalon = async (req: Request, res: Response) => {
 
         // pour creer l'utilisateur, le salon et la participation
         const result = await prisma.$transaction(async (tx) => {
-            const user = await tx.utilisateur.create({
+            /*const user = await tx.utilisateur.create({
                 data: {
                     pseudo,
                     email: `guest_${Date.now()}@example.com`, // Placeholder
                     mot_de_passe_hache: await hashPassword("guest"), // Placeholder
                 },
-            });
+            });*/
+            if (!pseudo) {
+                res.status(400).json({ error: "Pseudo requis" });
+                return;
+            }
+            try {
+                const user = createAccountExec(pseudo,await hashPassword("guest"),`guest_${Date.now()}@example.com`);
+            }
+            catch (error) {
+                console.error("Erreur création de compte :", error);
+                res.status(500).json({ error: "Erreur lors de la création du compte" });
+            }
 
             // Creer la participation
             const participation = await tx.participation.create({
@@ -234,6 +245,46 @@ export const login = async (req: Request, res: Response) => {
         res.status(500).json({ error: "Erreur lors de la connection" });
     }
 };
+
+export const createAccount = async (req: Request, res: Response) => {
+    const {pseudo, password, email} = req.body;
+    if (!pseudo || !password || !email) {
+        res.status(400).json({ error: "Pseudo, mot de passe et email requis" });
+        return;
+    }
+    const pseudoPris = await prisma.utilisateur.findFirst({
+        where: {
+            pseudo: pseudo,
+        },
+    });
+    if (pseudoPris) {
+        res.status(409).json({ error: "Ce pseudo est déjà utilisé." });
+        return;
+    }
+    const result = await prisma.$transaction(async (tx) => {
+        try {
+            createAccountExec(pseudo,password,email);
+        }
+        catch (error) {
+            console.error("Erreur création de compte :", error);
+            res.status(500).json({ error: "Erreur lors de la création du compte" });
+        }
+    }); 
+    res.status(201).json(result);
+};
+
+async function createAccountExec(pseudo : string, password: string, email: string): Promise<any> {
+    // pour creer l'utilisateur
+    const user = await tx.utilisateur.create({
+        data: {
+            pseudo,
+            email: `guest_${Date.now()}@example.com`, // Placeholder
+            mot_de_passe_hache: await hashPassword(password), // Placeholder
+        },
+    })
+    return {user};
+       
+}
 
 async function hashPassword(password: string): Promise<string> {
   const saltRounds = 10; // Adjust as needed for security/performance
