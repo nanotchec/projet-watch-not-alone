@@ -290,3 +290,17 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
   const isMatch = await bcrypt.compare(password, hash);
   return isMatch;
 }
+
+async function getSalonParticpePasse(tx: Prisma.TransactionClient, user:Utilisateur): Promise<Salon> {
+    const participations = await tx.participation.findMany({
+        where: {
+            id_participation: user.id_utilisateur,
+        }
+    });
+    const salons = await tx.salon.findMany({
+        where: {
+            id_salon: { in: participations.id_salon},
+        }
+    });
+    return{salons};
+}
