@@ -291,16 +291,20 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
   return isMatch;
 }
 
-async function getSalonParticpePasse(tx: Prisma.TransactionClient, user:Utilisateur): Promise<Salon> {
+async function getSalonParticpePasse(tx: Prisma.TransactionClient, user: Utilisateur): Promise<Salon[]> {
     const participations = await tx.participation.findMany({
         where: {
-            id_participation: user.id_utilisateur,
+            id_utilisateurID: user.id_utilisateur,
         }
     });
+    const salonIds = participations
+        .map((p) => p.id_salonID)
+        .filter((id): id is number => id !== null);
+
     const salons = await tx.salon.findMany({
         where: {
-            id_salon: { in: participations.id_salon},
+            id_salon: { in: salonIds },
         }
     });
-    return{salons};
+    return salons;
 }
