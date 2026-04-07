@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { prisma } from "../prisma";
 import bcrypt from 'bcrypt';
+import {Prisma,Utilisateur, Salon, Participation, Message, Playlist} from "@prisma/client";
+
+
 
 export const createSalon = async (req: Request, res: Response) => {
     try {
@@ -18,62 +21,16 @@ export const createSalon = async (req: Request, res: Response) => {
         }
         try {
             const user = createAccountExec(pseudo,await hashPassword("guest"),`guest_${Date.now()}@example.com`);
+            const participation = createParticipationExec(user);
+            const salon = createSalonExec(participation, nom);
+            const playlist = createPlaylistExec(salon,participation);
+            return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
         }
         catch (error) {
             console.error("Erreur création de compte :", error);
             res.status(500).json({ error: "Erreur lors de la création du compte" });
         }
-        const result = await prisma.$transaction(async (tx) => {
-            /*const user = await tx.utilisateur.create({
-                data: {
-                    pseudo,
-                    email: `guest_${Date.now()}@example.com`, // Placeholder
-                    mot_de_passe_hache: await hashPassword("guest"), // Placeholder
-                },
-            });*/
-            
-
-            // Creer la participation
-            const participation = await tx.participation.create({
-                data: {
-                    pseudo,
-                    role: "HOST",
-                    ip: req.ip || "127.0.0.1",
-                    id_utilisateurID: user.id_utilisateur,
-                },
-            });
-
-            // Creer le salon
-            const codePartage = Math.random().toString(36).substring(2, 8).toUpperCase();
-            const salon = await tx.salon.create({
-                data: {
-                    nom,
-                    code_partage: codePartage,
-                    id_participation_hoteID: participation.id_participation,
-                },
-            });
-
-            // Creer la playlist par defaut du salon
-            const playlist = await tx.playlist.create({
-                data: {
-                    id_salonID: salon.id_salon,
-                    id_particiaptionID: participation.id_participation,
-                }
-            });
-
-            // lier participation au salon
-            await tx.participation.update({
-                where: { id_participation: participation.id_participation },
-                data: {
-                    id_salon: {
-                        connect: { id_salon: salon.id_salon }
-                    }
-                },
-            });
-
-            //return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
-        });
-        return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
+        //return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
         res.status(201).json(result);
     } catch (error) {
         console.error("Erreur création salon:", error);
@@ -227,7 +184,7 @@ export const login = async (req: Request, res: Response) => {
             return;
         }
 
-        const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);
+        const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);Promise<any>
         if (isCorrect) {
             const particip = await prisma.participation.findMany({
                 where: {
@@ -274,17 +231,63 @@ export const createAccount = async (req: Request, res: Response) => {
     res.status(201).json(result);
 };
 
-async function createAccountExec(pseudo : string, password: string, email: string): Promise<any> {
+async function createAccountExec(pseudo : string, password: string, email: string): Promise<Utilisateur> {
     // pour creer l'utilisateur
     const user = await tx.utilisateur.create({
         data: {
             pseudo,
-            email: `guest_${Date.now()}@example.com`, // Placeholder
+            email,
             mot_de_passe_hache: await hashPassword(password), // Placeholder
         },
     })
     return {user};
        
+}
+
+async function createParticipationExec(user: any): Promise<Participation> {
+    // Creer la participation
+    const participation = await tx.participation.create({
+                data: {
+                    pseudo: user.pseudo,
+                    role: "HOST",
+                    ip: req.ip || "127.0.0.1",
+                    id_utilisateurID: user.id_utilisateur,
+                },
+            })
+            return {participation};
+}
+
+async function createSalonExec(participation: any, nom: string):Promise<Salon> {
+    // Creer le salon
+    const codePartage = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const salon = await tx.salon.create({
+        data: {
+            nom,
+            code_partage: codePartage,
+            id_participation_hoteID: participation.id_participation,
+        },
+    })
+    // lier participation au salon
+    await tx.participation.update({
+        where: { id_participation: participation.id_participation },
+        data: {
+            id_salon: {
+                connect: { id_salon: salon.id_salon }
+            }
+        },
+    })
+    return{salon};
+}
+
+async function createPlaylistExec(salon: any, participation: any):Promise<Playlist> {
+    // Creer la playlist par defaut du salon
+    const playlist = await tx.playlist.create({
+        data: {
+            id_salonID: salon.id_salon,
+            id_particiaptionID: participation.id_participation,
+        }
+    })
+    return{playlist};
 }
 
 async function hashPassword(password: string): Promise<string> {
