@@ -14,23 +14,14 @@ export const createSalon = async (req: Request, res: Response) => {
             return;
         }
 
-        // pour creer l'utilisateur, le salon et la participation
-        if (!pseudo) {
-            res.status(400).json({ error: "Pseudo requis" });
-            return;
-        }
-        try {
-            const user = createAccountExec(pseudo,await hashPassword("guest"),`guest_${Date.now()}@example.com`);
-            const participation = createParticipationExec(user);
-            const salon = createSalonExec(participation, nom);
-            const playlist = createPlaylistExec(salon,participation);
+        const result = await prisma.$transaction(async (tx) => {
+            const user = await createAccountExec(tx, pseudo, "guest", `guest_${Date.now()}@example.com`);
+            const participation = await createParticipationExec(tx, user, req.ip || "127.0.0.1");
+            const salon = await createSalonExec(tx, participation, nom);
+            await createPlaylistExec(tx, salon, participation);
             return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
-        }
-        catch (error) {
-            console.error("Erreur création de compte :", error);
-            res.status(500).json({ error: "Erreur lors de la création du compte" });
-        }
-        //return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
+        });
+
         res.status(201).json(result);
     } catch (error) {
         console.error("Erreur création salon:", error);
@@ -184,7 +175,7 @@ export const login = async (req: Request, res: Response) => {
             return;
         }
 
-        const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);Promise<any>
+        const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);
         if (isCorrect) {
             const particip = await prisma.participation.findMany({
                 where: {
@@ -219,45 +210,43 @@ export const createAccount = async (req: Request, res: Response) => {
         res.status(409).json({ error: "Ce pseudo est déjà utilisé." });
         return;
     }
-    const result = await prisma.$transaction(async (tx) => {
-        try {
-            createAccountExec(pseudo,password,email);
-        }
-        catch (error) {
-            console.error("Erreur création de compte :", error);
-            res.status(500).json({ error: "Erreur lors de la création du compte" });
-        }
-    }); 
-    res.status(201).json(result);
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            return await createAccountExec(tx, pseudo, password, email);
+        }); 
+        res.status(201).json(result);
+    } catch (error) {
+        console.error("Erreur création de compte :", error);
+        res.status(500).json({ error: "Erreur lors de la création du compte" });
+    }
 };
 
-async function createAccountExec(pseudo : string, password: string, email: string): Promise<Utilisateur> {
+async function createAccountExec(tx: Prisma.TransactionClient, pseudo : string, password: string, email: string): Promise<Utilisateur> {
     // pour creer l'utilisateur
     const user = await tx.utilisateur.create({
         data: {
             pseudo,
             email,
-            mot_de_passe_hache: await hashPassword(password), // Placeholder
+            mot_de_passe_hache: await hashPassword(password),
         },
-    })
-    return {user};
-       
+    });
+    return user;
 }
 
-async function createParticipationExec(user: any): Promise<Participation> {
+async function createParticipationExec(tx: Prisma.TransactionClient, user: Utilisateur, ip: string): Promise<Participation> {
     // Creer la participation
     const participation = await tx.participation.create({
-                data: {
-                    pseudo: user.pseudo,
-                    role: "HOST",
-                    ip: req.ip || "127.0.0.1",
-                    id_utilisateurID: user.id_utilisateur,
-                },
-            })
-            return {participation};
+        data: {
+            pseudo: user.pseudo,
+            role: "HOST",
+            ip: ip,
+            id_utilisateurID: user.id_utilisateur,
+        },
+    });
+    return participation;
 }
 
-async function createSalonExec(participation: any, nom: string):Promise<Salon> {
+async function createSalonExec(tx: Prisma.TransactionClient, participation: Participation, nom: string): Promise<Salon> {
     // Creer le salon
     const codePartage = Math.random().toString(36).substring(2, 8).toUpperCase();
     const salon = await tx.salon.create({
@@ -266,7 +255,8 @@ async function createSalonExec(participation: any, nom: string):Promise<Salon> {
             code_partage: codePartage,
             id_participation_hoteID: participation.id_participation,
         },
-    })
+    });
+    
     // lier participation au salon
     await tx.participation.update({
         where: { id_participation: participation.id_participation },
@@ -275,19 +265,19 @@ async function createSalonExec(participation: any, nom: string):Promise<Salon> {
                 connect: { id_salon: salon.id_salon }
             }
         },
-    })
-    return{salon};
+    });
+    return salon;
 }
 
-async function createPlaylistExec(salon: any, participation: any):Promise<Playlist> {
+async function createPlaylistExec(tx: Prisma.TransactionClient, salon: Salon, participation: Participation): Promise<Playlist> {
     // Creer la playlist par defaut du salon
     const playlist = await tx.playlist.create({
         data: {
             id_salonID: salon.id_salon,
             id_particiaptionID: participation.id_participation,
         }
-    })
-    return{playlist};
+    });
+    return playlist;
 }
 
 async function hashPassword(password: string): Promise<string> {
