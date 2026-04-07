@@ -71,9 +71,9 @@ export const createSalon = async (req: Request, res: Response) => {
                 },
             });
 
-            return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
+            //return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
         });
-
+        return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
         res.status(201).json(result);
     } catch (error) {
         console.error("Erreur création salon:", error);
