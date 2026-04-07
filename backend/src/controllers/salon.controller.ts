@@ -222,7 +222,7 @@ export const login = async (req: Request, res: Response) => {
         })
 
         if (!user || !user.mot_de_passe_hache) {
-            res.status(401).json({ error: "Mauvais username and/or password incorrect" });
+            res.status(401).json({ error: "pseudo et mot de passe requits" });
             return;
         }
 
@@ -236,7 +236,7 @@ export const login = async (req: Request, res: Response) => {
             res.status(200).json({particip})
         }
         else {
-            res.status(401).json({ error: "Mauvais username and/or password incorrect"});
+            res.status(401).json({ error: "Mauvais pseudo et/ou mot de passe incorrect"});
         }
 
     }
