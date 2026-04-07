@@ -12,6 +12,17 @@ export const createSalon = async (req: Request, res: Response) => {
         }
 
         // pour creer l'utilisateur, le salon et la participation
+        if (!pseudo) {
+            res.status(400).json({ error: "Pseudo requis" });
+            return;
+        }
+        try {
+            const user = createAccountExec(pseudo,await hashPassword("guest"),`guest_${Date.now()}@example.com`);
+        }
+        catch (error) {
+            console.error("Erreur création de compte :", error);
+            res.status(500).json({ error: "Erreur lors de la création du compte" });
+        }
         const result = await prisma.$transaction(async (tx) => {
             /*const user = await tx.utilisateur.create({
                 data: {
@@ -20,17 +31,7 @@ export const createSalon = async (req: Request, res: Response) => {
                     mot_de_passe_hache: await hashPassword("guest"), // Placeholder
                 },
             });*/
-            if (!pseudo) {
-                res.status(400).json({ error: "Pseudo requis" });
-                return;
-            }
-            try {
-                const user = createAccountExec(pseudo,await hashPassword("guest"),`guest_${Date.now()}@example.com`);
-            }
-            catch (error) {
-                console.error("Erreur création de compte :", error);
-                res.status(500).json({ error: "Erreur lors de la création du compte" });
-            }
+            
 
             // Creer la participation
             const participation = await tx.participation.create({
