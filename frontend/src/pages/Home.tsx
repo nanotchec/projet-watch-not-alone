@@ -67,7 +67,7 @@ export default function Home() {
       <main className="flex-1 flex flex-col items-center justify-center text-center p-8">
         <h1 className="text-5xl md:text-7xl font-anton mb-4">WatchNotAlone</h1>
         <p className="text-lg md:text-xl text-gray-300 mb-8 font-ibm max-w-2xl h-24 md:h-6">
-          <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+          <span className="bg-linear-to-r from-white to-gray-300 bg-clip-text text-transparent">
             {displayedText}
           </span>
           <span className="typed-cursor--blink" aria-hidden="true">|</span>

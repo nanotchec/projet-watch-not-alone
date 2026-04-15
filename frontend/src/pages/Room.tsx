@@ -3,7 +3,9 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import { useYouTubePlayer } from '../services/useYouTubePlayer';
-import { useSocket } from '../hooks/useSocket';
+import { useSocket, type AnnotationPayload } from '../hooks/useSocket';
+import SecondaryVideo from '../components/SecondaryVideo';
+import AnnotationOverlay, { type AnnotationTool } from '../components/AnnotationOverlay';
 
 interface StreamElement {
   id_element_playlist: number;
@@ -29,7 +31,7 @@ interface ChatMessage {
 
 export default function Room() {
   //récupère les paramètres des states venant du formulaire de CreationApp
-  const { code } = useParams<{code: string}>();
+  const { code } = useParams<{ code: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state as LocationState;
@@ -45,10 +47,42 @@ export default function Room() {
     state?.isHost ? 'HOST' : 'MEMBER'
   );
 
-  //states for multi-stream
+  //les etats des videos pour le multi-stream
   const [playlist, setPlaylist] = useState<any[]>([]);
   const [mainVideoId, setMainVideoId] = useState<string>('');
   const [mainFournisseur, setMainFournisseur] = useState<string>('YOUTUBE');
+
+  // modes (standard ou sport)
+  const [roomMode, setRoomMode] = useState<'STANDARD' | 'SPORTS_ANALYSIS'>('STANDARD');
+  const [annotations, setAnnotations] = useState<AnnotationPayload[]>([]);
+  const [isDrawingEnabled, setIsDrawingEnabled] = useState(false);
+  const [activeTool, setActiveTool] = useState<AnnotationTool>('draw');
+  const [annotationColor, setAnnotationColor] = useState('#ef4444');
+  const [textInput, setTextInput] = useState('');
+
+  //les etats des mini-flux
+  const [secondarySlots, setSecondarySlots] = useState<(string | null)[]>([null, null, null]);
+  const secondarySlotsRef = useRef(secondarySlots);
+  useEffect(() => { secondarySlotsRef.current = secondarySlots; }, [secondarySlots]);
+
+  //echange local, quel mini-flux est affiché dans le player principal (null = vidéo du serveur)
+  const [localMainVideoId, setLocalMainVideoId] = useState<string | null>(null);
+  const [localMainSlotIdx, setLocalMainSlotIdx] = useState<number | null>(null);
+
+  // Réf pour addAnnotation (évite les boucles de dépendances)
+  const addAnnotationRef = useRef<any>(null);
+
+  //broadcast des slots secondaires pour que les autres utilisateurs voient les memes videos
+  const broadcastSecondarySlots = useCallback((slots: (string | null)[]) => {
+    if (addAnnotationRef.current) {
+      addAnnotationRef.current({
+        id_angle: null,
+        timestamp_video: 0,
+        type: 'SYNC_SECONDARY',
+        payload: slots
+      });
+    }
+  }, []);
 
   //valeurs pour le chat et le salon
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -61,11 +95,11 @@ export default function Room() {
   const sendMessageRef = useRef<((contenu: string) => void) | null>(null);
 
   useEffect(() => {   //si aucun code du salon valide n'est récupérable alors retourne une erreur puis kick vers Creation
-    if(!codePartage){
+    if (!codePartage) {
       console.error('Code de salon introuvable, redirection vers creation de salon');
       navigate('/creation');
     }
-    if (userPseudo == ''){ //meme chose s'il n'a pas de pseudo non defini
+    if (userPseudo == '') { //meme chose s'il n'a pas de pseudo non defini
       console.error('Pseudo non identifiable, redirection vers creation de salon');
       navigate('/creation');
     }
@@ -84,7 +118,7 @@ export default function Room() {
   }, []);
 
   //connexion websocket si roomcode existe
-  const { isConnected, error, sendUpdate, sendMessage, addStreamToPlaylist, setMainStream } = useSocket({
+  const { isConnected, error, sendUpdate, sendMessage, addStreamToPlaylist, setMainStream, changeRoomMode, addAnnotation } = useSocket({
     codePartage,
     pseudo: userPseudo,
     // Callback appelé quand le serveur demande une synchronisation de l'état de lecture
@@ -96,6 +130,9 @@ export default function Room() {
         console.log('Rôle mis à jour depuis le serveur:', data.role);
         setUserRole(data.role);
       }
+      //mise a jour du mode
+      if (data.mode) setRoomMode(data.mode);
+      if (data.angles) console.log('Angles reçus du serveur (non utilisés):', data.angles);
 
       // Applique l'état de synchronisation via la référence du player
       if (applySyncStateRef.current) {
@@ -115,7 +152,7 @@ export default function Room() {
       }
     }, []),
     onChatMessage: onChatMessageCallback,
-    onStreamAdded: useCallback((element : StreamElement) => {
+    onStreamAdded: useCallback((element: StreamElement) => {
       console.log('Stream added:', element);
       setPlaylist(prev => [...prev, element]);
     }, []),
@@ -124,7 +161,35 @@ export default function Room() {
       setMainVideoId(videoId);
       setMainFournisseur(fournisseur);
     }, []),
+    onRoomModeChanged: useCallback((mode: 'STANDARD' | 'SPORTS_ANALYSIS', newAngles: any[]) => {
+      setRoomMode(mode);
+      console.log('Angles du mode sport reçus:', newAngles);
+      // Désactiver le dessin si on quitte le mode sport
+      if (mode !== 'SPORTS_ANALYSIS') {
+        setIsDrawingEnabled(false);
+      }
+    }, []),
+    onNewAnnotation: useCallback((annotation: AnnotationPayload) => {
+      if (annotation.type === 'CLEAR') {
+        setAnnotations([]);
+      } else if (annotation.type === 'SYNC_SECONDARY') {
+        setSecondarySlots(annotation.payload);
+      } else {
+        setAnnotations(prev => [...prev, annotation]);
+      }
+    }, []),
+    onUserJoined: useCallback((_pseudo: string) => {
+      // Ratrappage pour les nouveaux : le HOST leur envoie l'état local actuel des slots
+      if (userRole === 'HOST') {
+        broadcastSecondarySlots(secondarySlotsRef.current);
+      }
+    }, [userRole, broadcastSecondarySlots]),
   });
+
+  // Maintenir la réf à jour
+  useEffect(() => {
+    addAnnotationRef.current = addAnnotation;
+  }, [addAnnotation]);
 
   //stocker sendUpdate dans ref
   useEffect(() => {
@@ -168,10 +233,14 @@ export default function Room() {
     }
   }, [userRole]);
 
+  //la video afficher dans le flux principal (soit celle du serveur, soit celle de l'utilisateur choisi dans le mini-flux)
+  const displayedVideoId = localMainVideoId ?? mainVideoId;
+
   //gestion du lecteur YouTube
   const {
     containerRef,
     isPlaying,
+    currentTime,
     volume,
     isFullscreen,
     seekPercentage,
@@ -186,7 +255,7 @@ export default function Room() {
       onSeek: onSeekCallback,
       onVideoChange: onVideoChangeCallback,
     },
-    mainVideoId,
+    mainVideoId: displayedVideoId,
     mainFournisseur,
   });
 
@@ -272,14 +341,13 @@ export default function Room() {
     );
   };
 
-  // Badge indiquant le rôle de l'utilisateur
+  //badge pour afficher le role de l'utilisateur
   const RoleBadge = () => (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-        userRole === 'HOST'
-          ? 'bg-yellow-500 text-gray-900'
-          : 'bg-gray-600 text-gray-200'
-      }`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${userRole === 'HOST'
+        ? 'bg-yellow-500 text-gray-900'
+        : 'bg-gray-600 text-gray-200'
+        }`}
     >
       {userRole === 'HOST' ? 'Hote' : 'Membre'}
     </span>
@@ -300,6 +368,21 @@ export default function Room() {
               Salon: {roomName} ({codePartage})
             </h1>
             <div className="flex items-center gap-3">
+              {userRole === 'HOST' ? (
+                <button
+                  onClick={() => changeRoomMode(roomMode === 'STANDARD' ? 'SPORTS_ANALYSIS' : 'STANDARD')}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border-2 transition-colors ${roomMode === 'SPORTS_ANALYSIS'
+                    ? 'bg-red-600 border-red-500 text-white shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                    : 'bg-transparent border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-300'
+                    }`}
+                >
+                  {roomMode === 'SPORTS_ANALYSIS' ? 'Analyse Sportive' : 'Standard'}
+                </button>
+              ) : roomMode === 'SPORTS_ANALYSIS' && (
+                <span className="px-3 py-1 rounded-full text-xs font-bold border-2 bg-red-600/20 border-red-500 text-red-500 shadow-[0_0_10px_rgba(239,68,68,0.3)]">
+                  Analyse Sportive
+                </span>
+              )}
               <p className="text-gray-400">Connecté en tant que: {userPseudo}</p>
               <RoleBadge />
             </div>
@@ -308,14 +391,201 @@ export default function Room() {
           <div className="flex flex-1 space-x-6 overflow-hidden">
             {/* lecteur vidéo youtube */}
             <div className="flex flex-col flex-1 bg-black rounded-lg shadow-lg overflow-hidden">
-              {/* conteneur du player youtube */}
+
+              {/* mini flux dans le mode sportive */}
+              {roomMode === 'SPORTS_ANALYSIS' && (
+                <div className="bg-gray-800 border-b border-gray-700 p-3 shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Flux secondaires</p>
+                    {localMainVideoId && (
+                      <button
+                        onClick={() => {
+                          setLocalMainVideoId(null);
+                          setLocalMainSlotIdx(null);
+                        }}
+                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-700 hover:bg-blue-600 text-white transition-colors"
+                      >
+                        Retour à la vidéo principale
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-3">
+                    {secondarySlots.map((slotVideoId, idx) => (
+                      <div
+                        key={idx}
+                        className="flex-1 bg-gray-900 rounded-lg overflow-hidden flex flex-col"
+                        style={{ maxWidth: '33%' }}
+                      >
+                        {slotVideoId ? (
+                          //si le slot est rempli alors on affiche le lecteur secondaire cliquable
+                          <>
+                            <SecondaryVideo
+                              videoId={slotVideoId}
+                              isPlaying={isPlaying}
+                              currentTime={currentTime}
+                              label={`ANGLE ${idx + 1}`}
+                              isSelected={localMainSlotIdx === idx}
+                              onClick={() => {
+                                if (localMainSlotIdx === idx) {
+                                  //si le slot est deja selectionner alors on le deselectionne et s'enleve de la video principale
+                                  setLocalMainVideoId(null);
+                                  setLocalMainSlotIdx(null);
+                                } else {
+                                  //sinon on le selectionne et s'ajoute a la video principale
+                                  setLocalMainVideoId(slotVideoId);
+                                  setLocalMainSlotIdx(idx);
+                                }
+                              }}
+                            />
+                            {userRole === 'HOST' && (
+                              //si c'est l'hote alors on affiche le bouton retirer
+                              <button
+                                onClick={() => {
+                                  const updated = [...secondarySlots];
+                                  updated[idx] = null;
+                                  setSecondarySlots(updated);
+                                  broadcastSecondarySlots(updated);
+                                  //met a jour l'etat local si le slot retire est celui de la video principale
+                                  if (localMainSlotIdx === idx) {
+                                    setLocalMainVideoId(null);
+                                    setLocalMainSlotIdx(null);
+                                  }
+                                }}
+                                className="w-full py-1 text-[10px] font-semibold text-red-400 hover:text-red-300 hover:bg-gray-800 transition-colors"
+                              >
+                                Retirer
+                              </button>
+                            )}
+                          </>
+                        ) : (
+                          //si ce slot est vide alors on affiche un message dans ce slot vide
+                          <div className="flex flex-col items-center justify-center p-3 gap-1 ring-1 ring-gray-700 rounded-lg" style={{ minHeight: 100 }}>
+                            <span className="text-sm text-gray-500">ANGLE {idx + 1}</span>
+                            <span className="text-[15px] text-gray-600 italic">
+                              {userRole === 'HOST' ? 'Utilisez + dans la playlist' : 'En attente de l\'hôte...'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {localMainVideoId && (
+                    <p className="text-[10px] text-blue-400 mt-2 text-center">
+                      Vous visionnez un angle secondaire en local — les autres participants voient la vidéo principale
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* conteneur du player youtube principal */}
               <div className="relative w-full grow pt-[56.25%] bg-black">
                 <div ref={containerRef} className="absolute inset-0"></div>
-                {/* overlay transparent qui bloque les interactions */}
-                {blockClicks && (
-                  <div className="absolute inset-0 z-40 bg-transparent cursor-not-allowed" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} onContextMenu={(e) => { e.preventDefault(); }} onDragStart={(e) => { e.preventDefault(); }}/>
+
+                {/* Overlay Annotations */}
+                {roomMode === 'SPORTS_ANALYSIS' && (
+                  <AnnotationOverlay
+                    annotations={annotations}
+                    isDrawingEnabled={isDrawingEnabled}
+                    activeTool={activeTool}
+                    color={annotationColor}
+                    pendingText={textInput}
+                    onAddAnnotation={(payload, type) => {
+                      addAnnotation({
+                        id_angle: null,
+                        timestamp_video: currentTime,
+                        type,
+                        payload,
+                      });
+                    }}
+                  />
+                )}
+
+                {/* overlay transparent qui bloque les interactions avec YouTube (play/pause via click) */}
+                {blockClicks && (!isDrawingEnabled || roomMode !== 'SPORTS_ANALYSIS') && (
+                  <div className="absolute inset-0 z-40 bg-transparent cursor-not-allowed" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }} onContextMenu={(e) => { e.preventDefault(); }} onDragStart={(e) => { e.preventDefault(); }} />
                 )}
               </div>
+
+              {/* outils d'annotation (visible à tous les utilisateurs en mode sport) */}
+              {roomMode === 'SPORTS_ANALYSIS' && (
+                <div className="flex flex-wrap items-center gap-3 bg-gray-900 px-4 py-2 border-b border-gray-700 select-none">
+                  <span className="text-sm font-semibold text-gray-400 whitespace-nowrap">Annotations :</span>
+
+                  {/* bouton pour activer/désactiver les annotations */}
+                  <button
+                    onClick={() => setIsDrawingEnabled(!isDrawingEnabled)}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold transition-colors flex items-center gap-2 ${isDrawingEnabled ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                      }`}
+                  >
+                    {isDrawingEnabled ? 'Désactiver' : 'Annoter'}
+                  </button>
+
+                  {isDrawingEnabled && (
+                    <>
+                      {/* bouton pour dessiner ou texte*/}
+                      <div className="flex rounded overflow-hidden border border-gray-600">
+                        <button
+                          onClick={() => setActiveTool('draw')}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${activeTool === 'draw' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                        >
+                          Dessin
+                        </button>
+                        <button
+                          onClick={() => setActiveTool('text')}
+                          className={`px-3 py-1.5 text-xs font-semibold transition-colors ${activeTool === 'text' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            }`}
+                        >
+                          Texte
+                        </button>
+                      </div>
+
+                      {/* palette de couleurs */}
+                      <div className="flex items-center gap-1.5">
+                        <label className="text-xs text-gray-400">Couleur :</label>
+                        {['#ef4444', '#facc15', '#22c55e', '#3b82f6', '#ffffff'].map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => setAnnotationColor(c)}
+                            style={{ backgroundColor: c }}
+                            className={`w-5 h-5 rounded-full border-2 transition-transform ${annotationColor === c ? 'border-white scale-125' : 'border-transparent'
+                              }`}
+                          />
+                        ))}
+                      </div>
+
+                      {/* un champ de texte pour le texte */}
+                      {activeTool === 'text' && (
+                        <input
+                          type="text"
+                          placeholder="Texte à placer…"
+                          value={textInput}
+                          onChange={(e) => setTextInput(e.target.value)}
+                          className="px-2 py-1 rounded text-xs bg-gray-700 text-white border border-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500 w-36"
+                        />
+                      )}
+                    </>
+                  )}
+
+                  {/* efface les annotations pour tout le monde (seulement par le HOST) */}
+                  {userRole === 'HOST' && (
+                    <button
+                      onClick={() => {
+                        addAnnotation({
+                          id_angle: null,
+                          timestamp_video: currentTime,
+                          type: 'CLEAR',
+                          payload: {},
+                        });
+                      }}
+                      className="ml-auto px-3 py-1.5 rounded text-xs font-semibold bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors"
+                      title="Efface les dessins pour tout le monde"
+                    >
+                      Effacer
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* controles du lecteur youtube */}
               <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-t border-gray-700 text-white select-none space-x-4">
@@ -325,11 +595,10 @@ export default function Room() {
                   disabled={userRole !== 'HOST'}
                   aria-label={isPlaying ? 'Mettre la vidéo en pause' : 'Lire la vidéo'}
                   title={userRole !== 'HOST' ? 'Seul l\'hôte peut contrôler la lecture' : undefined}
-                  className={`px-4 py-2 rounded flex items-center justify-center transition-colors ${
-                    userRole === 'HOST'
-                      ? 'bg-blue-600 hover:bg-blue-700'
-                      : 'bg-gray-600 cursor-not-allowed opacity-50'
-                  }`}
+                  className={`px-4 py-2 rounded flex items-center justify-center transition-colors ${userRole === 'HOST'
+                    ? 'bg-blue-600 hover:bg-blue-700'
+                    : 'bg-gray-600 cursor-not-allowed opacity-50'
+                    }`}
                 >
                   {isPlaying ? (
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.8" stroke="currentColor" className="w-6 h-6">
@@ -351,9 +620,8 @@ export default function Room() {
                   onChange={(e) => seek(Number(e.target.value))}
                   disabled={userRole !== 'HOST'}
                   title={userRole !== 'HOST' ? 'Seul l\'hôte peut modifier la progression' : undefined}
-                  className={`flex-1 accent-blue-500 ${
-                    userRole === 'HOST' ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
-                  }`}
+                  className={`flex-1 accent-blue-500 ${userRole === 'HOST' ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'
+                    }`}
                 />
 
                 {/* barre de volume accessible a tous (local seulement, pas de sync) */}
@@ -404,30 +672,65 @@ export default function Room() {
                 </h2>
                 <ul className="space-y-2">
                   {/* c'est le HOST peut faire des manipulation que les members ne peuvent rien faire*/}
-                  {playlist.map((video) => (
-                    <li
-                      key={video.id_element_playlist}
-                      onClick={() => {
-                        if (userRole === 'HOST') {
-                          setMainStream(video.id_element_playlist);
-                        }
-                      }}
-                      title={userRole !== 'HOST' ? 'Seul l\'hôte peut changer la vidéo' : `Lire: ${video.video_id}`}
-                      className={`px-3 py-2 rounded text-sm flex items-center justify-between gap-2 ${
-                        mainVideoId === video.video_id
+                  {playlist.map((video) => {
+                    //logique pour le bouton "+" pour les mini flux (mode Sportive, hôte seulement)
+                    const isAlreadyInSlot = secondarySlots.includes(video.video_id);
+                    const allSlotsFull = secondarySlots.every(s => s !== null);
+                    const canAddToSlot = roomMode === 'SPORTS_ANALYSIS' && userRole === 'HOST' && !isAlreadyInSlot && !allSlotsFull;
+                    const showSlotBtn = roomMode === 'SPORTS_ANALYSIS' && userRole === 'HOST';
+
+                    return (
+                      <li
+                        key={video.id_element_playlist}
+                        title={userRole !== 'HOST' ? 'Seul l\'hôte peut changer la vidéo' : `Lire: ${video.video_id}`}
+                        className={`px-3 py-2 rounded text-sm flex items-center justify-between gap-2 ${mainVideoId === video.video_id
                           ? 'bg-blue-600 text-white'
                           : 'bg-gray-700 text-gray-200'
-                      } ${
-                        userRole === 'HOST'
-                          ? 'cursor-pointer hover:bg-blue-700'
-                          : 'cursor-default'
-                      }`}
-                    >
-                      <span className="truncate">
-                        {video.fournisseur}: {video.video_id}
-                      </span>
-                    </li>
-                  ))}
+                          }`}
+                      >
+                        <span
+                          className={`truncate flex-1 ${userRole === 'HOST' ? 'cursor-pointer hover:underline' : 'cursor-default'
+                            }`}
+                          onClick={() => {
+                            if (userRole === 'HOST') {
+                              setMainStream(video.id_element_playlist);
+                            }
+                          }}
+                        >
+                          {video.fournisseur}: {video.video_id}
+                        </span>
+                        {/* bouton "+" pour ajouter aux mini-flux (mode Sportive, hôte seulement) */}
+                        {showSlotBtn && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!canAddToSlot) return;
+                              const firstFreeIdx = secondarySlots.findIndex(s => s === null);
+                              if (firstFreeIdx === -1) return;
+                              const updated = [...secondarySlots];
+                              updated[firstFreeIdx] = video.video_id;
+                              setSecondarySlots(updated);
+                              broadcastSecondarySlots(updated);
+                            }}
+                            disabled={!canAddToSlot}
+                            title={
+                              isAlreadyInSlot
+                                ? 'Déjà dans un mini-flux'
+                                : allSlotsFull
+                                  ? 'Tous les slots sont remplis'
+                                  : 'Ajouter dans les mini-flux'
+                            }
+                            className={`shrink-0 w-7 h-7 rounded flex items-center justify-center text-xl font-bold transition-colors ${canAddToSlot
+                              ? 'bg-blue-700 hover:bg-blue-400 text-white cursor-pointer'
+                              : 'bg-gray-600 text-gray-500 cursor-not-allowed opacity-50'
+                              }`}
+                          >
+                            +
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {playlist.length === 0 && (
                   <p className="text-gray-400 text-center py-4 text-sm">
@@ -442,7 +745,7 @@ export default function Room() {
               <section className="bg-gray-800 rounded-lg p-4 flex flex-col max-h-[40vh] overflow-hidden">
                 <h2 className="text-lg font-semibold mb-3">Chat</h2>
                 {/* messages */}
-                <div 
+                <div
                   ref={chatContainerRef}
                   className="flex-1 overflow-y-auto mb-2 space-y-2 bg-gray-900 p-3 rounded"
                 >
@@ -459,11 +762,10 @@ export default function Room() {
                           className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}  //justify-start = gauche = autre utilisateur du salon
                         >
                           <div
-                            className={`max-w-xs px-3 py-2 rounded-lg ${
-                              isOwnMessage
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-700 text-gray-200'
-                            }`}
+                            className={`max-w-xs px-3 py-2 rounded-lg ${isOwnMessage
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-700 text-gray-200'
+                              }`}
                           >
                             <p className="text-xs font-semibold mb-1">
                               {isOwnMessage ? 'Vous' : msg.author} {msg.timestamp.getHours()}:{msg.timestamp.getMinutes()}

@@ -10,6 +10,20 @@ interface SyncState {
   activeElementId?: number;
   // Le serveur peut envoyer le rôle lors du sync_state initial (join_salon)
   role?: 'HOST' | 'MEMBER';
+  mode?: 'STANDARD' | 'SPORTS_ANALYSIS';
+  angles?: any[];
+}
+
+export interface AnnotationPayload {
+  id_annotation?: number;
+  id_salon?: number;
+  id_participation?: number;
+  id_angle: number | null;
+  timestamp_video: number;
+  duree_affichage?: number;
+  type: string; // "DESSIN", "TEXTE", "FLECHE"
+  payload: any; // e.g. coordonnées, texte, etc.
+  cree_le?: string | Date;
 }
 
 interface ChatMessage {
@@ -34,6 +48,9 @@ interface UseSocketOptions {
   onChatMessage?: (message: ChatMessage) => void; //de même pour le chat
   onStreamAdded?: (element: StreamElement) => void;
   onMainStreamChanged?: (elementPlaylistId: number, videoId: string, fournisseur: string) => void;
+  onRoomModeChanged?: (mode: 'STANDARD' | 'SPORTS_ANALYSIS', angles: any[]) => void;
+  onNewAnnotation?: (annotation: AnnotationPayload) => void;
+  onUserJoined?: (pseudo: string) => void;
 }
 
 export const useSocket = ({
@@ -43,12 +60,18 @@ export const useSocket = ({
   onChatMessage,
   onStreamAdded,
   onMainStreamChanged,
+  onRoomModeChanged,
+  onNewAnnotation,
+  onUserJoined,
 }: UseSocketOptions) => {
   const socketRef = useRef<Socket | null>(null);
   const onSyncStateRef = useRef(onSyncState); //stocker le callback dans un ref
   const onChatMessageRef = useRef(onChatMessage); //même chose pour le chat
   const onStreamAddedRef = useRef(onStreamAdded);
   const onMainStreamChangedRef = useRef(onMainStreamChanged);
+  const onRoomModeChangedRef = useRef(onRoomModeChanged);
+  const onNewAnnotationRef = useRef(onNewAnnotation);
+  const onUserJoinedRef = useRef(onUserJoined);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,6 +80,9 @@ export const useSocket = ({
   useEffect(() => { onChatMessageRef.current = onChatMessage; }, [onChatMessage]);
   useEffect(() => { onStreamAddedRef.current = onStreamAdded; }, [onStreamAdded]);
   useEffect(() => { onMainStreamChangedRef.current = onMainStreamChanged; }, [onMainStreamChanged]);
+  useEffect(() => { onRoomModeChangedRef.current = onRoomModeChanged; }, [onRoomModeChanged]);
+  useEffect(() => { onNewAnnotationRef.current = onNewAnnotation; }, [onNewAnnotation]);
+  useEffect(() => { onUserJoinedRef.current = onUserJoined; }, [onUserJoined]);
 
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_BACKEND_URL || window.location.origin;
@@ -100,6 +126,7 @@ export const useSocket = ({
       }
     });
 
+    //ecoute les updates de stream
     socket.on('stream_added', (element: StreamElement) => {
       console.log('stream_added reçu:', element);
       if (onStreamAddedRef.current) {
@@ -107,18 +134,45 @@ export const useSocket = ({
       }
     });
 
-    socket.on('main_stream_changed', (elementPlaylistId: number, videoId: string, fournisseur: string) => {
-      console.log('main_stream_changed reçu:', elementPlaylistId, videoId, fournisseur);
+    //ecoute les updates de main stream
+    socket.on('main_stream_changed', (payload: { elementPlaylistId: number, videoId: string, fournisseur: string }) => {
+      console.log('main_stream_changed reçu:', payload);
       if (onMainStreamChangedRef.current) {
-        onMainStreamChangedRef.current(elementPlaylistId, videoId, fournisseur);
+        onMainStreamChangedRef.current(payload.elementPlaylistId, payload.videoId, payload.fournisseur);
       }
     });
 
+    //ecoute les updates de user joined
+    socket.on('user_joined', (data: { pseudo: string }) => {
+      console.log('user_joined reçu:', data);
+      if (onUserJoinedRef.current) {
+        onUserJoinedRef.current(data.pseudo);
+      }
+    });
+
+    //ecoute les updates de room mode
+    socket.on('room_mode_changed', (data: { mode: 'STANDARD' | 'SPORTS_ANALYSIS', angles: any[] }) => {
+      console.log('room_mode_changed reçu:', data);
+      if (onRoomModeChangedRef.current) {
+        onRoomModeChangedRef.current(data.mode, data.angles);
+      }
+    });
+
+    //ecoute les updates de new annotation
+    socket.on('new_annotation', (annotation: AnnotationPayload) => {
+      console.log('new_annotation reçu:', annotation);
+      if (onNewAnnotationRef.current) {
+        onNewAnnotationRef.current(annotation);
+      }
+    });
+
+    //ecoute les erreurs de connexion
     socket.on('connect_error', (err) => {
       console.error('Erreur de connexion:', err);
       setError('Impossible de se connecter au serveur');
     });
 
+    //ecoute les erreurs
     socket.on('error', (err) => {
       console.error('Erreur socket:', err);
       setError(err.message || 'Une erreur est survenue');
@@ -189,6 +243,26 @@ export const useSocket = ({
     socketRef.current.emit('set_main_stream', payload);
   };
 
+  const changeRoomMode = (mode: 'STANDARD' | 'SPORTS_ANALYSIS') => {
+    if (!socketRef.current || !isConnected) {
+      console.warn('Socket non connecté, impossible de changer le mode du salon');
+      return;
+    }
+    const payload = { codePartage, pseudo, mode };
+    console.log('Envoi change_room_mode:', payload);
+    socketRef.current.emit('change_room_mode', payload);
+  };
+
+  const addAnnotation = (annotation: Omit<AnnotationPayload, 'id_annotation' | 'id_salon' | 'id_participation' | 'cree_le'>) => {
+    if (!socketRef.current || !isConnected) {
+      console.warn('Socket non connecté, impossible d\'envoyer une annotation');
+      return;
+    }
+    const payload = { codePartage, pseudo, ...annotation };
+    console.log('Envoi add_annotation:', payload);
+    socketRef.current.emit('add_annotation', payload);
+  };
+
   return {
     isConnected,
     error,
@@ -196,5 +270,7 @@ export const useSocket = ({
     sendMessage,
     addStreamToPlaylist,
     setMainStream,
+    changeRoomMode,
+    addAnnotation,
   };
 };

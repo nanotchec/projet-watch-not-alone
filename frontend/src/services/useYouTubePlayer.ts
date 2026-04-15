@@ -26,7 +26,7 @@ interface UseYouTubePlayerOptions {
 }
 
 export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
-  const { syncCallbacks, mainVideoId} = options;
+  const { syncCallbacks, mainVideoId } = options;
 
   //refs pour le player youtube
   const playerRef = useRef<any>(null);
@@ -90,7 +90,9 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
           onStateChange: (event: any) => {
             if (event.data === window.YT.PlayerState.PLAYING) {
               setIsPlaying(true);
-            } else {
+            } else if (event.data === window.YT.PlayerState.PAUSED) {
+              setIsPlaying(false);
+            } else if (event.data === window.YT.PlayerState.ENDED) {
               setIsPlaying(false);
             }
             //passer à la vidéo suivante si terminée
@@ -137,7 +139,19 @@ export function useYouTubePlayer(options: UseYouTubePlayerOptions = {}) {
       const currentLoadedVideoId = currentVideoData?.video_id;
       if (currentLoadedVideoId !== mainVideoId) {
         console.log('Loading main video:', mainVideoId);
-        playerRef.current.loadVideoById(mainVideoId);
+        //recup le temps exacte au moment du chargement (buffer de la vidéo)
+        const timeToResume = playerRef.current.getCurrentTime() || currentTime;
+        //compensation du temps de désynchronisation lorsqu'on change de vidéo des mini-flux (généralement du 200ms est plutot "synchro")
+        const compensatedTime = timeToResume + (isPlaying ? 0.2 : 0);
+        playerRef.current.loadVideoById(mainVideoId, compensatedTime);
+        // Si la vidéo était en pause, on la remet en pause après le load
+        if (!isPlaying) {
+          setTimeout(() => {
+            if (playerRef.current) {
+              playerRef.current.pauseVideo();
+            }
+          }, 500);
+        }
       }
     }
   }, [mainVideoId, isReady]);
