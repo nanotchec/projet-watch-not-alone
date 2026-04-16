@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 interface RoomResponse {
   salon: {
@@ -80,30 +82,34 @@ const RoomApp: React.FC = () => {
   };
   return (
     // rendu html du form pour créer ou rejoindre
-    <div className="min-h-screen flex items-center justify-center bg-sky-950">
-      <div className="bg-gray-900 p-8 rounded-lg shadow-lg text-center max-w-md w-full">
-        <h1 className="text-4xl font-bold text-white mb-2">
-          {mode === 'create' ? 'Création de salon' : 'Rejoindre un salon'}
-        </h1>
-        <p className="text-gray-400 mb-6">
-          {mode === 'create' ? 'Créez votre propre salon' : 'Entrez le code du salon'}
-        </p>
-        <div className="flex gap-2 mb-6">
-          <button type="button" onClick={()=>setMode('create')} className={`button-selection ${mode==='create' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Créer</button>
-          <button type="button" onClick={()=>setMode('join')} className={`button-selection ${mode==='join' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Rejoindre</button>
+    <div className="min-h-screen flex flex-col bg-sky-950 text-white">
+      <Header />
+      <main className="flex flex-1 items-center justify-center px-4 py-8">
+        <div className="bg-gray-900 p-8 rounded-lg shadow-lg text-center max-w-md w-full border border-gray-800">
+          <h1 className="text-4xl font-bold text-white mb-2">
+            {mode === 'create' ? 'Création de salon' : 'Rejoindre un salon'}
+          </h1>
+          <p className="text-gray-400 mb-6">
+            {mode === 'create' ? 'Créez votre propre salon' : 'Entrez le code du salon'}
+          </p>
+          <div className="flex gap-2 mb-6">
+            <button type="button" onClick={()=>setMode('create')} className={`button-selection ${mode==='create' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Créer</button>
+            <button type="button" onClick={()=>setMode('join')} className={`button-selection ${mode==='join' ? 'button-selection-mode' : 'button-selection-unmode'}`}>Rejoindre</button>
+          </div>
+          <form onSubmit={handleSubmit}>
+            {mode === 'create' ? (
+              <input type="text" name="room-name" placeholder="Nom du salon" className="input-room" required/>
+            ) : (   //mode 'join'
+              <input type="text" name="code-partage" placeholder="Code du salon (6 caractères)" maxLength={6} className="input-room" required/>
+            )}
+            <input type="text" name="user-name" placeholder="Votre pseudo" className="input-room" required/>
+            <button type="submit" disabled={loading} className="button-submit">
+              {loading ? "Chargement..." : mode === 'create' ? "Créer le salon" : "Rejoindre le salon"}
+            </button>
+          </form>
         </div>
-        <form onSubmit={handleSubmit}>
-          {mode === 'create' ? (
-            <input type="text" name="room-name" placeholder="Nom du salon" className="input-room" required/>
-          ) : (   //mode 'join'
-            <input type="text" name="code-partage" placeholder="Code du salon (6 caractères)" maxLength={6} className="input-room" required/>
-          )}
-          <input type="text" name="user-name" placeholder="Votre pseudo" className="input-room" required/>
-          <button type="submit" disabled={loading} className="button-submit">
-            {loading ? "Chargement..." : mode === 'create' ? "Créer le salon" : "Rejoindre le salon"}
-          </button>
-        </form>
-      </div>
+      </main>
+      <Footer />
     </div>
   );
 };

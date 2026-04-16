@@ -29,6 +29,11 @@ interface ChatMessage {
   timestamp: Date;
 }
 
+interface Participant {
+  pseudo: string;
+  role: 'HOST' | 'MEMBER' | string;
+}
+
 export default function Room() {
   //récupère les paramètres des states venant du formulaire de CreationApp
   const { code } = useParams<{ code: string }>();
@@ -39,6 +44,7 @@ export default function Room() {
   const [roomName] = useState(state?.salonName || 'undefined salon')
   const [userPseudo] = useState(state?.userPseudo || '');
   const [codePartage] = useState(code || state?.codePartage || '');
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [blockClicks] = useState(true); //bloque les click sur le vidéo container
 
   // BUG FIX: état du rôle de l'utilisateur, initialisé depuis isHost du state de navigation
@@ -87,6 +93,7 @@ export default function Room() {
   //valeurs pour le chat et le salon
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [participants, setParticipants] = useState<Participant[]>([]);
   const chatContainerRef = useRef<HTMLDivElement>(null);  //ref pour auto scroll vers le bas le message container
 
   //gestion du lecteur youtube + chat
@@ -183,6 +190,10 @@ export default function Room() {
       if (userRole === 'HOST') {
         broadcastSecondarySlots(secondarySlotsRef.current);
       }
+      setParticipants((prev) => {
+        if (prev.some((p) => p.pseudo === _pseudo)) return prev;
+        return [...prev, { pseudo: _pseudo, role: 'MEMBER' }];
+      });
     }, [userRole, broadcastSecondarySlots]),
   });
 
@@ -207,6 +218,26 @@ export default function Room() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight; //scrollHeight = tout en bas
     }
   }, [chatMessages]);
+
+  // Récupère la liste des participants depuis l'API
+  useEffect(() => {
+    if (!codePartage) return;
+
+    const loadParticipants = async () => {
+      try {
+        const response = await fetch(`/salon/${codePartage}/participants`);
+        if (!response.ok) return;
+        const data = await response.json() as { participants?: Participant[] };
+        if (data.participants) {
+          setParticipants(data.participants);
+        }
+      } catch (err) {
+        console.error('Erreur chargement participants:', err);
+      }
+    };
+
+    loadParticipants();
+  }, [codePartage]);
 
   //callbacks stables pour le player
   const onPlayPauseCallback = useCallback((willPlay: boolean, timestamp: number) => {
@@ -353,6 +384,18 @@ export default function Room() {
     </span>
   );
 
+  const handleCopyRoomCode = useCallback(async () => {
+    if (!codePartage) return;
+    try {
+      await navigator.clipboard.writeText(codePartage);
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('error');
+    } finally {
+      setTimeout(() => setCopyStatus('idle'), 1800);
+    }
+  }, [codePartage]);
+
   return (
     <div className="bg-gray-900 text-white flex flex-col min-h-screen">
       {/* Header avec bouton ajout vidéo uniquement visible pour le HOST */}
@@ -364,9 +407,26 @@ export default function Room() {
           <ConnectionStatus />
 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 space-y-3 md:space-y-0">
-            <h1 className="text-2xl font-anton font-bold">
-              Salon: {roomName} ({codePartage})
-            </h1>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-anton font-bold">
+                Salon: {roomName}
+              </h1>
+              <span className="inline-flex items-center rounded-full bg-gray-800 border border-gray-600 px-3 py-1 text-xs font-mono tracking-wide text-blue-300">
+                Code: {codePartage || '------'}
+              </span>
+              <button
+                onClick={handleCopyRoomCode}
+                type="button"
+                disabled={!codePartage}
+                className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${codePartage
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                  : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  }`}
+                title={codePartage ? 'Copier le code du salon' : 'Code indisponible'}
+              >
+                {copyStatus === 'copied' ? 'Copié' : copyStatus === 'error' ? 'Erreur copie' : 'Copier'}
+              </button>
+            </div>
             <div className="flex items-center gap-3">
               {userRole === 'HOST' ? (
                 <button
@@ -797,7 +857,22 @@ export default function Room() {
           <footer className="bg-gray-800 border-t border-gray-700 p-4 flex items-center space-x-4 overflow-x-auto mt-4">
             <h3 className="font-semibold">Participants :</h3>
             <div className="flex space-x-3">
-              {/* A faire: ajouter les participants ici */}
+              {participants.length === 0 ? (
+                <p className="text-sm text-gray-400">Aucun participant trouvé</p>
+              ) : (
+                participants.map((participant) => (
+                  <span
+                    key={participant.pseudo}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold ${participant.role === 'HOST'
+                      ? 'bg-yellow-500 text-gray-900'
+                      : 'bg-gray-700 text-gray-200'
+                      }`}
+                  >
+                    {participant.pseudo}
+                    {participant.role === 'HOST' ? ' (Hote)' : ''}
+                  </span>
+                ))
+              )}
             </div>
           </footer>
         </section>

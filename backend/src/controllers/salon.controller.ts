@@ -111,6 +111,112 @@ export const joinSalon = async (req: Request, res: Response) => {
     }
 };
 
+export const reconnectSalon = async (req: Request, res: Response) => {
+    try {
+        const { pseudo, password } = req.body;
+
+        if (!pseudo || !password) {
+            res.status(400).json({ error: "Pseudo et mot de passe requis" });
+            return;
+        }
+
+        const plainPassword = String(password);
+        if (plainPassword !== "guest" && plainPassword !== "test") {
+            res.status(401).json({ error: "Mot de passe invalide (utilisez guest ou test en minuscule)" });
+            return;
+        }
+
+        const user = await prisma.utilisateur.findFirst({
+            where: { pseudo },
+            orderBy: { id_utilisateur: "desc" },
+        });
+
+        if (!user || !user.mot_de_passe_hache) {
+            res.status(404).json({ error: "Utilisateur introuvable" });
+            return;
+        }
+
+        const isCorrect = await verifyPassword(plainPassword, user.mot_de_passe_hache);
+        if (!isCorrect) {
+            res.status(401).json({ error: "Pseudo ou mot de passe incorrect" });
+            return;
+        }
+
+        const participation = await prisma.participation.findFirst({
+            where: {
+                id_utilisateurID: user.id_utilisateur,
+                id_salonID: { not: null },
+            },
+            include: {
+                id_salon: true,
+            },
+            orderBy: {
+                rejoint_le: "desc",
+            },
+        });
+
+        if (!participation || !participation.id_salon) {
+            res.status(404).json({ error: "Aucun salon trouvé pour cet utilisateur" });
+            return;
+        }
+
+        res.status(200).json({
+            user: {
+                pseudo: user.pseudo,
+            },
+            salon: {
+                nom: participation.id_salon.nom,
+                code_partage: participation.id_salon.code_partage,
+            },
+            participation: {
+                role: participation.role,
+            },
+        });
+    } catch (error) {
+        console.error("Erreur reconnexion salon:", error);
+        res.status(500).json({ error: "Erreur lors de la reconnexion" });
+    }
+};
+
+export const getSalonParticipants = async (req: Request, res: Response) => {
+    try {
+        const rawCodePartage = req.params.codePartage;
+        const codePartage = Array.isArray(rawCodePartage) ? rawCodePartage[0] : rawCodePartage;
+
+        if (!codePartage) {
+            res.status(400).json({ error: "Code salon requis" });
+            return;
+        }
+
+        const salon = await prisma.salon.findFirst({
+            where: { code_partage: codePartage },
+        });
+
+        if (!salon) {
+            res.status(404).json({ error: "Salon introuvable" });
+            return;
+        }
+
+        const participants = await prisma.participation.findMany({
+            where: {
+                id_salonID: salon.id_salon,
+            },
+            select: {
+                pseudo: true,
+                role: true,
+            },
+            orderBy: {
+                rejoint_le: "asc",
+            },
+        });
+
+        res.status(200).json({ participants });
+    } catch (error) {
+        console.error("Erreur récupération participants:", error);
+        res.status(500).json({ error: "Erreur lors de la récupération des participants" });
+    }
+};
+
 export const createMessage = async (req: Request, res: Response) => {
     try {
         const { message, pseudo, codePartage } = req.body;

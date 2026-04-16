@@ -5,6 +5,7 @@ import APropos from './pages/APropos';
 import Contact from './pages/Contact';
 import MentionsLegales from './pages/MentionsLegales';
 import CreationRoom from './pages/CreationApp';
+import Reconnexion from './pages/Reconnexion';
 
 // Application React
 function App() {
@@ -15,6 +16,7 @@ function App() {
       <Route path="/room" element={<Room />} /> {/* Pour les tests sans code */}
       <Route path="/room/:code" element={<Room />} /> {/* ✅ Route dynamique avec code */}
       <Route path="/creation" element={<CreationRoom />} />
+      <Route path="/reconnexion" element={<Reconnexion />} />
       <Route path="/a-propos" element={<APropos />} />
       <Route path="/contact" element={<Contact />} />
       <Route path="/mentions-legales" element={<MentionsLegales />} />

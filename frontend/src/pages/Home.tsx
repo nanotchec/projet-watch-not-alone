@@ -72,9 +72,14 @@ export default function Home() {
           </span>
           <span className="typed-cursor--blink" aria-hidden="true">|</span>
         </p>
-        <Link to="/creation" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105">
-          Créer un salon
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Link to="/creation" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105">
+            Créer un salon
+          </Link>
+          <Link to="/reconnexion" className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 border border-gray-500">
+            Reconnexion
+          </Link>
+        </div>
       </main>
       <Footer />
     </div>
