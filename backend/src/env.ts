@@ -30,4 +30,5 @@ export const env = {
   port: parsePort(process.env.PORT),
   corsOrigins: parseOrigins(process.env.CORS_ORIGINS),
   databaseUrl: required(process.env.DATABASE_URL, "DATABASE_URL"),
+  jwtSecret: process.env.JWT_SECRET ?? "supersecret",
 };

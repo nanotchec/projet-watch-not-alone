@@ -7,6 +7,7 @@ import { env } from "./env";
 import { prisma } from "./prisma";
 
 import salonRoutes from "./routes/salon.routes";
+import authRoutes from "./routes/auth.routes";
 import { setupSalonSockets } from "./sockets/salon.handler";
 
 async function main() {
@@ -31,6 +32,7 @@ async function main() {
   app.use(express.json());
 
   app.use("/salon", salonRoutes);
+  app.use("/auth", authRoutes);
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, environment: env.nodeEnv });

@@ -2,8 +2,10 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function Home() {
+  const { user } = useAuth();
   //valeurs pour l'animation
   const [displayedText, setDisplayedText] = useState('');
   const phraseIndexRef = useRef(0);
@@ -76,9 +78,15 @@ export default function Home() {
           <Link to="/creation" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105">
             Créer un salon
           </Link>
-          <Link to="/reconnexion" className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 border border-gray-500">
-            Reconnexion
-          </Link>
+          {user ? (
+            <Link to="/mes-salons" className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 border border-gray-500">
+              Mes Salons
+            </Link>
+          ) : (
+            <Link to="/auth" className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-8 rounded-lg text-xl transition duration-300 ease-in-out transform hover:scale-105 border border-gray-500">
+              Connexion / Inscription
+            </Link>
+          )}
         </div>
       </main>
       <Footer />

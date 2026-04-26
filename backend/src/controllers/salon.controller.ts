@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import { prisma } from "../prisma";
 import bcrypt from 'bcrypt';
-import {Prisma,Utilisateur, Salon, Participation, Message, Playlist} from "@prisma/client";
+import { Prisma, Utilisateur, Salon, Participation, Message, Playlist } from "@prisma/client";
+import jwt from "jsonwebtoken";
+import { env } from "../env";
 
 
 
@@ -274,35 +276,37 @@ export const login = async (req: Request, res: Response) => {
             where: {
                 pseudo: pseudo,
             },
-        })
+        });
 
         if (!user || !user.mot_de_passe_hache) {
-            res.status(401).json({ error: "pseudo et mot de passe requits" });
+            res.status(401).json({ error: "Pseudo et/ou mot de passe requis" });
             return;
         }
 
         const isCorrect = await verifyPassword(password, user.mot_de_passe_hache);
         if (isCorrect) {
-            const particip = await prisma.participation.findMany({
-                where: {
-                    id_utilisateurID: user.id_utilisateur, 
-                },
-            })
-            res.status(200).json({particip})
+            const token = jwt.sign(
+                { id_utilisateur: user.id_utilisateur, pseudo: user.pseudo },
+                env.jwtSecret,
+                { expiresIn: "7d" }
+            );
+            res.status(200).json({ 
+                token, 
+                user: { id_utilisateur: user.id_utilisateur, pseudo: user.pseudo, email: user.email } 
+            });
         }
         else {
-            res.status(401).json({ error: "Mauvais pseudo et/ou mot de passe incorrect"});
+            res.status(401).json({ error: "Pseudo ou mot de passe incorrect" });
         }
-
     }
     catch (error) {
         console.error("Erreur login :", error);
-        res.status(500).json({ error: "Erreur lors de la connection" });
+        res.status(500).json({ error: "Erreur lors de la connexion" });
     }
 };
 
 export const createAccount = async (req: Request, res: Response) => {
-    const {pseudo, password, email} = req.body;
+    const { pseudo, password, email } = req.body;
     if (!pseudo || !password || !email) {
         res.status(400).json({ error: "Pseudo, mot de passe et email requis" });
         return;
@@ -320,10 +324,42 @@ export const createAccount = async (req: Request, res: Response) => {
         const result = await prisma.$transaction(async (tx) => {
             return await createAccountExec(tx, pseudo, password, email);
         }); 
-        res.status(201).json(result);
+
+        const token = jwt.sign(
+            { id_utilisateur: result.id_utilisateur, pseudo: result.pseudo },
+            env.jwtSecret,
+            { expiresIn: "7d" }
+        );
+
+        res.status(201).json({ 
+            token, 
+            user: { id_utilisateur: result.id_utilisateur, pseudo: result.pseudo, email: result.email } 
+        });
     } catch (error) {
         console.error("Erreur création de compte :", error);
         res.status(500).json({ error: "Erreur lors de la création du compte" });
+    }
+};
+
+export const getMesSalons = async (req: Request, res: Response) => {
+    try {
+        // Le middleware authenticateJWT a attaché l'utilisateur à req.user
+        const userId = (req as any).user.id_utilisateur;
+
+        const user = await prisma.utilisateur.findUnique({
+            where: { id_utilisateur: userId }
+        });
+
+        if (!user) {
+            res.status(404).json({ error: "Utilisateur non trouvé" });
+            return;
+        }
+
+        const salons = await getSalonParticpePasse(prisma, user);
+        res.status(200).json({ salons });
+    } catch (error) {
+        console.error("Erreur lors de la récupération de l'historique :", error);
+        res.status(500).json({ error: "Erreur lors de la récupération de l'historique" });
     }
 };
 

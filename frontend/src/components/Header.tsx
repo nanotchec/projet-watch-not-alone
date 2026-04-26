@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 interface HeaderProps {
   showSearch?: boolean;
@@ -15,6 +16,14 @@ export default function Header({ showSearch = false, onAddVideo }: HeaderProps) 
       onAddVideo(url);
       e.currentTarget.reset();
     }
+  };
+
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
@@ -38,6 +47,32 @@ export default function Header({ showSearch = false, onAddVideo }: HeaderProps) 
           </button>
         </form>
       )}
+      
+      {/* section authentification */}
+      <div className="flex items-center space-x-4">
+        {user ? (
+          <>
+            <Link to="/mes-salons" className="text-gray-300 hover:text-white font-medium transition">
+              Mes Salons
+            </Link>
+            <div className="flex items-center gap-3 border-l border-gray-600 pl-4">
+              <span className="text-gray-300 text-sm">
+                Connecté en tant que <span className="font-bold text-white">{user.pseudo}</span>
+              </span>
+              <button 
+                onClick={handleLogout}
+                className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded transition"
+              >
+                Déconnexion
+              </button>
+            </div>
+          </>
+        ) : (
+          <Link to="/auth" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-semibold transition">
+            Connexion
+          </Link>
+        )}
+      </div>
     </header>
   );
 }
