@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import Sidebar from '../components/Sidebar';
 import { useYouTubePlayer } from '../services/useYouTubePlayer';
 import { useSocket, type AnnotationPayload } from '../hooks/useSocket';
+import { useAuth } from '../contexts/AuthContext';
 import SecondaryVideo from '../components/SecondaryVideo';
 import AnnotationOverlay, { type AnnotationTool } from '../components/AnnotationOverlay';
 
@@ -41,8 +42,9 @@ export default function Room() {
   const navigate = useNavigate();
   const state = location.state as LocationState;
 
+  const { user } = useAuth();
   const [roomName] = useState(state?.salonName || 'undefined salon')
-  const [userPseudo] = useState(state?.userPseudo || '');
+  const [userPseudo] = useState(state?.userPseudo || user?.pseudo || '');
   const [codePartage] = useState(code || state?.codePartage || '');
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [blockClicks] = useState(true); //bloque les click sur le vidéo container

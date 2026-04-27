@@ -24,7 +24,7 @@ export default function Auth() {
     const body = isLoginTab ? { pseudo, password } : { pseudo, password, email };
 
     try {
-      const baseUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const baseUrl = import.meta.env.VITE_BACKEND_URL || '/api';
       const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {

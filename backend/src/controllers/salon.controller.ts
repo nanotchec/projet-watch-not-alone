@@ -16,9 +16,21 @@ export const createSalon = async (req: Request, res: Response) => {
             return;
         }
 
+        let authUser = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, env.jwtSecret) as { id_utilisateur: number };
+                authUser = await prisma.utilisateur.findUnique({ where: { id_utilisateur: decoded.id_utilisateur } });
+            } catch (e) {
+                console.log("Token invalide ou expiré, création d'un compte invité");
+            }
+        }
+
         const result = await prisma.$transaction(async (tx) => {
-            const user = await createAccountExec(tx, pseudo, "guest", `guest_${Date.now()}@example.com`);
-            const participation = await createParticipationExec(tx, user, req.ip || "127.0.0.1");
+            const user = authUser || await createAccountExec(tx, pseudo, "guest", `guest_${Date.now()}@example.com`);
+            const participation = await createParticipationExec(tx, user, pseudo, req.ip || "127.0.0.1");
             const salon = await createSalonExec(tx, participation, nom);
             await createPlaylistExec(tx, salon, participation);
             return { salon, user, participation: { ...participation, id_salonID: salon.id_salon } };
@@ -83,9 +95,21 @@ export const joinSalon = async (req: Request, res: Response) => {
             return;
         }
 
+        let authUser = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+            const token = authHeader.split(' ')[1];
+            try {
+                const decoded = jwt.verify(token, env.jwtSecret) as { id_utilisateur: number };
+                authUser = await prisma.utilisateur.findUnique({ where: { id_utilisateur: decoded.id_utilisateur } });
+            } catch (e) {
+                console.log("Token invalide ou expiré, création d'un compte invité");
+            }
+        }
+
         // Correction : Utilisation d'une transaction pour tout creer d'un coup (plus sûr)
         const result = await prisma.$transaction(async (tx) => {
-            const user = await tx.utilisateur.create({
+            const user = authUser || await tx.utilisateur.create({
                 data: {
                     pseudo,
                     email: `guest_${Date.now()}@example.com`, // Placeholder
@@ -375,11 +399,11 @@ async function createAccountExec(tx: Prisma.TransactionClient, pseudo : string, 
     return user;
 }
 
-async function createParticipationExec(tx: Prisma.TransactionClient, user: Utilisateur, ip: string): Promise<Participation> {
+async function createParticipationExec(tx: Prisma.TransactionClient, user: Utilisateur, pseudo: string, ip: string): Promise<Participation> {
     // Creer la participation
     const participation = await tx.participation.create({
         data: {
-            pseudo: user.pseudo,
+            pseudo: pseudo,
             role: "HOST",
             ip: ip,
             id_utilisateurID: user.id_utilisateur,

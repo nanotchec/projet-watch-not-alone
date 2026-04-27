@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RoomResponse {
   salon: {
@@ -19,6 +20,7 @@ interface ErrorResponse{
 type Mode = 'create' | 'join';
 const RoomApp: React.FC = () => {
   const navigate = useNavigate(); //pour rediriger vers une autre page
+  const { token, user } = useAuth(); // récupération de l'utilisateur connecté
   const [loading, setLoading] = useState<boolean>(false); // état de chargement
   const [mode, setMode] = useState<Mode>('create'); // 'create' ou 'join'
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -35,6 +37,7 @@ const RoomApp: React.FC = () => {
           method:'POST',
           headers:{
             'Content-Type':'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
             // demande au serveur de créer un salon avec le nom et pseudo que l'utilisateur a entré
@@ -49,6 +52,7 @@ const RoomApp: React.FC = () => {
           method:'POST',
           headers:{
             'Content-Type':'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
           },
           body: JSON.stringify({
             //sinon, c'est une demande de rejoindre un salon existant avec le code et pseudo
@@ -102,7 +106,7 @@ const RoomApp: React.FC = () => {
             ) : (   //mode 'join'
               <input type="text" name="code-partage" placeholder="Code du salon (6 caractères)" maxLength={6} className="input-room" required/>
             )}
-            <input type="text" name="user-name" placeholder="Votre pseudo" className="input-room" required/>
+            <input type="text" name="user-name" placeholder="Votre pseudo" defaultValue={user?.pseudo || ''} className="input-room" required/>
             <button type="submit" disabled={loading} className="button-submit">
               {loading ? "Chargement..." : mode === 'create' ? "Créer le salon" : "Rejoindre le salon"}
             </button>
