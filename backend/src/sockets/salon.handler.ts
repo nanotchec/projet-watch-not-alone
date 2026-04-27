@@ -114,6 +114,13 @@ export const setupSalonSockets = (io: Server) => {
                 currentTimestamp += elapsedSeconds;
             }
 
+            const participation = await prisma.participation.findFirst({
+                where: {
+                    id_salonID: salon.id_salon,
+                    pseudo: pseudo
+                }
+            });
+
             socket.emit("sync_state", {
                 etat: currentEtat,
                 timestamp: currentTimestamp,
@@ -124,6 +131,7 @@ export const setupSalonSockets = (io: Server) => {
                 activeElementId: salon.id_element_principalID,
                 mode: salon.mode,
                 angles: salon.element_principal?.angles || [],
+                role: participation?.role,
             });
 
             // 4. Notifier les autres
