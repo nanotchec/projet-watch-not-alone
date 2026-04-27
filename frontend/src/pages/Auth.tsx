@@ -24,7 +24,8 @@ export default function Auth() {
     const body = isLoginTab ? { pseudo, password } : { pseudo, password, email };
 
     try {
-      const response = await fetch(`http://localhost:4000${endpoint}`, {
+      const baseUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const response = await fetch(`${baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

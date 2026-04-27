@@ -25,7 +25,8 @@ export default function MesSalons() {
 
     const fetchSalons = async () => {
       try {
-        const response = await fetch('http://localhost:4000/auth/mes-salons', {
+        const baseUrl = import.meta.env.VITE_BACKEND_URL || '';
+        const response = await fetch(`${baseUrl}/auth/mes-salons`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
